@@ -1,0 +1,25 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 543345320
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: a51d7ad5f6b41b6571afc9a55e5c5717
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 0b7559cd9bc5cd64f29396a6307e2314
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: e38b59ed625dbb057793fa87606f816a
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: a40003fa30d46564cbc8adb6b2283eb8, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopRoot.asset
+- Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopIcon.asset
+Dependencies:
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/lesson43-smoke/battle_fx

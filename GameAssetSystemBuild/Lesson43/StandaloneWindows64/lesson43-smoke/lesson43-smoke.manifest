@@ -1,0 +1,17 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 2512665379
+HashAppended: 0
+AssetBundleManifest:
+  AssetBundleInfos:
+    Info_0:
+      Name: battle_audio
+      Dependencies: {}
+    Info_1:
+      Name: battle_fx
+      Dependencies:
+        Dependency_0: battle_audio
+    Info_2:
+      Name: ui_shop
+      Dependencies:
+        Dependency_0: battle_fx

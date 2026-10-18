@@ -1,0 +1,23 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 1393022163
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 053fa8d4a52e439a20306e02288ecb99
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 0b7559cd9bc5cd64f29396a6307e2314
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 318f5f97419d94c885afdb1b89f683b8
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: a40003fa30d46564cbc8adb6b2283eb8, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Game/AssetSystem/Lesson43Sample/Content/Battle/Audio/HitSfx.asset
+Dependencies: []

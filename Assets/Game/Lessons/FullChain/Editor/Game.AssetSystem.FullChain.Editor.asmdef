@@ -1,0 +1,19 @@
+{
+    "name": "Game.AssetSystem.FullChain.Editor",
+    "rootNamespace": "",
+    "references": [
+        "Game.AssetSystem.Lessons",
+        "Game.AssetSystem.L43.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
