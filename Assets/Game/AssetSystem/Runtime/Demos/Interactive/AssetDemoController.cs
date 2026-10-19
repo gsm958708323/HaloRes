@@ -5,7 +5,6 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Game.AssetSystem.FullChain;
-using Game.AssetSystem.FullChain;
 using Game.AssetSystem.Integration;
 using Game.AssetSystem.Release;
 using UnityEngine;
@@ -44,6 +43,7 @@ namespace Game.AssetSystem.Demos.Interactive
             public Image BattleButtonImage;
 
             public GameObject Cube;
+            public Material CubeMaterial;
             public Color CubeColor;
 
             public AssetHandle<DemoGraphNode> HandleOf(string owner)
@@ -122,6 +122,16 @@ namespace Game.AssetSystem.Demos.Interactive
         private int _reclaimedAssets;
         private int _reclaimedBundles;
         private int _activationCount;
+
+        /// <summary>
+        /// Incremented every time the runtime is rebuilt. A load that started
+        /// under an older generation must not publish its handle into the new
+        /// cache.
+        /// </summary>
+        private int _generation;
+
+        /// <summary>True while a version switch is in flight.</summary>
+        private bool _switching;
 
         private Canvas _canvas;
         private Transform _viewportRoot;
@@ -245,6 +255,9 @@ namespace Game.AssetSystem.Demos.Interactive
             }
 
             // 激活 = 重建运行时：旧运行时的 Bundle 必须彻底卸载
+            // 先提升代际：此后的完成回调都属于旧 cache，必须丢弃。
+            _generation++;
+
             AssetBundle.UnloadAllAssetBundles(true);
 
             _factory = new CountingFactory();
@@ -258,6 +271,7 @@ namespace Game.AssetSystem.Demos.Interactive
 
             for (var i = 0; i < _rows.Count; i++)
             {
+                ReleaseRowHandles(_rows[i]);
                 DestroyCube(_rows[i]);
             }
 
@@ -265,11 +279,56 @@ namespace Game.AssetSystem.Demos.Interactive
             Refresh();
         }
 
+        private static void ReleaseRowHandles(AssetRow row)
+        {
+            if (row.UiHandle != null)
+            {
+                var handle = row.UiHandle;
+                row.SetHandle(OwnerUi, null);
+
+                if (handle.IsValid)
+                {
+                    handle.Dispose();
+                }
+            }
+
+            if (row.BattleHandle != null)
+            {
+                var handle = row.BattleHandle;
+                row.SetHandle(OwnerBattle, null);
+
+                if (handle.IsValid)
+                {
+                    handle.Dispose();
+                }
+            }
+        }
+
+        private bool AnyRowLoading()
+        {
+            for (var i = 0; i < _rows.Count; i++)
+            {
+                if (_rows[i].IsLoading(OwnerUi) ||
+                    _rows[i].IsLoading(OwnerBattle))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // ------------------------------------------------------------------
         // actions
         // ------------------------------------------------------------------
         private async void Toggle(AssetRow row, string owner)
         {
+            if (_switching)
+            {
+                Toast("正在切换版本，请稍候");
+                return;
+            }
+
             if (row.IsLoading(owner))
             {
                 return;
@@ -289,6 +348,8 @@ namespace Game.AssetSystem.Demos.Interactive
                 return;
             }
 
+            var generation = _generation;
+
             row.AddLoading(owner, 1);
             Refresh();
 
@@ -301,6 +362,20 @@ namespace Game.AssetSystem.Demos.Interactive
                     owner + "." + row.Key);
 
                 var result = await task.Completion;
+
+                if (generation != _generation)
+                {
+                    // The runtime was rebuilt while this load was in flight.
+                    // Publishing the handle would put a handle from the old
+                    // cache onto a row that the new cache knows nothing about.
+                    if (result.Handle != null && result.Handle.IsValid)
+                    {
+                        result.Handle.Dispose();
+                    }
+
+                    Log(owner + " 加载 " + row.Key + " 完成于旧运行时，已丢弃");
+                    return;
+                }
 
                 if (result.Status == AssetLoadStatus.Succeeded && result.Handle != null)
                 {
@@ -453,6 +528,12 @@ namespace Game.AssetSystem.Demos.Interactive
 
         public async void SwitchVersion(string target)
         {
+            if (_switching)
+            {
+                Toast("正在切换中");
+                return;
+            }
+
             if (_activation == null || _cache == null)
             {
                 Toast("运行时未就绪");
@@ -473,31 +554,52 @@ namespace Game.AssetSystem.Demos.Interactive
                 return;
             }
 
-            var manifest = FullChainRunner.LoadManifest(dir);
-            var liveHandles = _cache.TotalLiveHandles;
-
-            var result = await _activation.ActivateAsync(
-                manifest,
-                dir,
-                FullChainLayout.PlatformKey,
-                liveHandles,
-                true);
-
-            if (result.Status != PatchActivationStatus.Succeeded)
+            // A load in flight has no handle yet, so TotalLiveHandles can read 0
+            // while work is still running. Refuse to switch until it settles.
+            if (AnyRowLoading() || _cache.LoadingAssetCount > 0)
             {
-                var hint = result.Status == PatchActivationStatus.RejectedActiveHandles
-                    ? "（还有 " + liveHandles + " 个 Handle 存活，先全部释放）"
-                    : string.Empty;
-
-                Log("激活 " + target + " 被拒：" + result.Status + hint);
-                Toast("激活被拒：" + result.Status);
+                Log("切换 " + target + " 被拒：仍有加载在进行");
+                Toast("还有加载在进行，稍后再切换");
                 return;
             }
 
-            _activationCount++;
-            RebuildRuntime();
-            Log("激活 " + target + " 成功，运行时已重建（第 " + _activationCount + " 次）");
-            Toast("已切换到 " + target);
+            var manifest = FullChainRunner.LoadManifest(dir);
+            var liveHandles = _cache.TotalLiveHandles;
+
+            _switching = true;
+
+            try
+            {
+                var result = await _activation.ActivateAsync(
+                    manifest,
+                    dir,
+                    FullChainLayout.PlatformKey,
+                    liveHandles,
+                    true,
+                    default(System.Threading.CancellationToken),
+                    () => _cache == null ? 0 : _cache.TotalLiveHandles,
+                    () => true);
+
+                if (result.Status != PatchActivationStatus.Succeeded)
+                {
+                    var hint = result.Status == PatchActivationStatus.RejectedActiveHandles
+                        ? "（还有 " + liveHandles + " 个 Handle 存活，先全部释放）"
+                        : string.Empty;
+
+                    Log("激活 " + target + " 被拒：" + result.Status + hint);
+                    Toast("激活被拒：" + result.Status);
+                    return;
+                }
+
+                _activationCount++;
+                RebuildRuntime();
+                Log("激活 " + target + " 成功，运行时已重建（第 " + _activationCount + " 次）");
+                Toast("已切换到 " + target);
+            }
+            finally
+            {
+                _switching = false;
+            }
         }
 
         // ------------------------------------------------------------------
@@ -752,15 +854,33 @@ namespace Game.AssetSystem.Demos.Interactive
 
                 var renderer = row.Cube.GetComponent<Renderer>();
 
-                if (renderer != null && renderer.material != null)
+                if (renderer != null)
                 {
-                    var target = refs > 0 ? row.CubeColor : row.CubeColor * 0.32f + Color.black * 0.2f;
-                    var materialColor = renderer.material.HasProperty("_BaseColor")
-                        ? renderer.material.GetColor("_BaseColor")
-                        : renderer.material.color;
+                    // Never read Renderer.material here: that getter instantiates
+                    // a material. The row owns exactly one instance, created in
+                    // CreateCube and destroyed with the cube.
+                    if (row.CubeMaterial == null)
+                    {
+                        row.CubeMaterial = renderer.sharedMaterial;
+                    }
 
-                    var blended = Color.Lerp(materialColor, target, Time.deltaTime * 8f);
-                    SetMaterialColor(renderer.material, blended);
+                    if (row.CubeMaterial != null)
+                    {
+                        var target = refs > 0
+                            ? row.CubeColor
+                            : row.CubeColor * 0.32f + Color.black * 0.2f;
+
+                        var materialColor = row.CubeMaterial.HasProperty("_BaseColor")
+                            ? row.CubeMaterial.GetColor("_BaseColor")
+                            : row.CubeMaterial.color;
+
+                        var blended = Color.Lerp(
+                            materialColor,
+                            target,
+                            Time.deltaTime * 8f);
+
+                        SetMaterialColor(row.CubeMaterial, blended);
+                    }
                 }
             }
         }
@@ -780,7 +900,11 @@ namespace Game.AssetSystem.Demos.Interactive
             {
                 var material = new Material(ResolveCubeShader());
                 SetMaterialColor(material, row.CubeColor);
-                renderer.material = material;
+
+                // sharedMaterial keeps this the single instance the row owns;
+                // Renderer.material would hand back an instantiated copy.
+                renderer.sharedMaterial = material;
+                row.CubeMaterial = material;
             }
 
             row.Cube = cube;
@@ -790,14 +914,21 @@ namespace Game.AssetSystem.Demos.Interactive
         {
             if (row.Cube == null)
             {
+                row.CubeMaterial = null;
                 return;
             }
 
             var renderer = row.Cube.GetComponent<Renderer>();
 
-            if (renderer != null && renderer.material != null)
+            if (renderer != null)
             {
-                Destroy(renderer.material);
+                renderer.sharedMaterial = null;
+            }
+
+            if (row.CubeMaterial != null)
+            {
+                Destroy(row.CubeMaterial);
+                row.CubeMaterial = null;
             }
 
             Destroy(row.Cube);

@@ -323,6 +323,53 @@ namespace Game.AssetSystem.Tests
         }
 
         // ------------------------------------------------------------------
+        // 3.6 场景 3：worker 已经产出结果后才取消，结果必须被释放而不是丢掉
+        // ------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator L36_CancelAfterWorkerFinished_ReleasesAbandonedResult()
+        {
+            var scheduler = new Scheduling.AssetLoadScheduler
+            {
+                MaxStartsPerFrame = 1,
+                MaxConcurrentLoads = 1
+            };
+
+            var scope = new Scheduling.LoadScope("SchedulerAbandonScope");
+            var abandoned = new List<string>();
+
+            var task = scheduler.Enqueue(
+                "abandon_1",
+                scope,
+                Scheduling.AssetLoadPriority.High,
+                ct => Task.FromResult("payload"),
+                value => abandoned.Add(value));
+
+            scheduler.Tick();
+
+            // The worker already returned; cancel before the main-thread pump
+            // gets to process the completion.
+            task.Cancel();
+
+            yield return WaitUntil(() => task.IsDone, "canceled task settles");
+
+            Assert.AreEqual(
+                Scheduling.ScheduledLoadStatus.Canceled,
+                task.Status,
+                "task must end canceled");
+
+            Assert.AreEqual(1, abandoned.Count, "abandoned result must be released");
+            Assert.AreEqual("payload", abandoned[0]);
+
+            var result = task.CompletionTask.Result;
+            Assert.AreEqual(
+                Scheduling.ScheduledLoadStatus.Canceled,
+                result.Status);
+            Assert.IsNull(result.Value, "a canceled task never hands out the value");
+
+            scope.Dispose();
+        }
+
+        // ------------------------------------------------------------------
         // 3.6 场景 2：Scope 释放时取消排队任务，运行中的任务收尾
         // ------------------------------------------------------------------
         [UnityTest]

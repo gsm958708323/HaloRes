@@ -3,7 +3,7 @@
     "contentVersion": "lesson43-test",
     "targetPlatformKey": "StandaloneWindows64",
     "buildTarget": "StandaloneWindows64",
-    "generatedAtUtc": "2026-10-19T14:06:13.1747710Z",
+    "generatedAtUtc": "2026-10-19T16:10:08.4647728Z",
     "bundles": [
         {
             "bundleGroupName": "battle_audio",

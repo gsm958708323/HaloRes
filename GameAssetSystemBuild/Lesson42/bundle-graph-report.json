@@ -1,0 +1,99 @@
+{
+    "Success": true,
+    "Manifest": {
+        "schemaVersion": 1,
+        "contentVersion": "graph-v1",
+        "generatedAtUtc": "2026-10-19T16:07:21.1253872Z",
+        "assets": [
+            {
+                "assetKey": "battle/audio/hitsfx",
+                "bundleId": 0,
+                "bundleGroupName": "battle_audio",
+                "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset",
+                "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset"
+            },
+            {
+                "assetKey": "battle/fx/fxa",
+                "bundleId": 1,
+                "bundleGroupName": "battle_fx",
+                "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset",
+                "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset"
+            },
+            {
+                "assetKey": "battle/fx/fxb",
+                "bundleId": 1,
+                "bundleGroupName": "battle_fx",
+                "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxB.asset",
+                "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxB.asset"
+            },
+            {
+                "assetKey": "ui/shop/shopicon",
+                "bundleId": 2,
+                "bundleGroupName": "ui_shop",
+                "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopIcon.asset",
+                "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopIcon.asset"
+            },
+            {
+                "assetKey": "ui/shop/shoproot",
+                "bundleId": 2,
+                "bundleGroupName": "ui_shop",
+                "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopRoot.asset",
+                "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopRoot.asset"
+            }
+        ],
+        "bundles": [
+            {
+                "bundleId": 0,
+                "bundleGroupName": "battle_audio",
+                "directDependencies": []
+            },
+            {
+                "bundleId": 1,
+                "bundleGroupName": "battle_fx",
+                "directDependencies": [
+                    0
+                ]
+            },
+            {
+                "bundleId": 2,
+                "bundleGroupName": "ui_shop",
+                "directDependencies": [
+                    1
+                ]
+            }
+        ]
+    },
+    "AssetCount": 5,
+    "BundleCount": 3,
+    "Errors": [],
+    "Warnings": [
+        {
+            "Code": 1,
+            "AssetKey": "battle/fx/fxa",
+            "Message": "Cross-group dependency: battle_fx -> battle_audio via Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset"
+        },
+        {
+            "Code": 1,
+            "AssetKey": "ui/shop/shoproot",
+            "Message": "Cross-group dependency: ui_shop -> battle_fx via Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset"
+        }
+    ],
+    "Edges": [
+        {
+            "FromBundleId": 1,
+            "FromBundleGroupName": "battle_fx",
+            "ToBundleId": 0,
+            "ToBundleGroupName": "battle_audio",
+            "FromAssetKey": "battle/fx/fxa",
+            "DependencyPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset"
+        },
+        {
+            "FromBundleId": 2,
+            "FromBundleGroupName": "ui_shop",
+            "ToBundleId": 1,
+            "ToBundleGroupName": "battle_fx",
+            "FromAssetKey": "ui/shop/shoproot",
+            "DependencyPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset"
+        }
+    ]
+}

@@ -36,12 +36,45 @@ namespace Game.AssetSystem.Integration
 
         public string GetPartPath(string contentVersion, string fileName)
         {
-            return Path.Combine(Root, contentVersion, fileName + ".part");
+            return Path.Combine(
+                GetVersionDirectory(contentVersion),
+                ValidateFileName(fileName) + ".part");
         }
 
         public string GetMetaPath(string contentVersion, string fileName)
         {
-            return Path.Combine(Root, contentVersion, fileName + ".part.meta");
+            return Path.Combine(
+                GetVersionDirectory(contentVersion),
+                ValidateFileName(fileName) + ".part.meta");
+        }
+
+        /// <summary>
+        /// Manifest values are data, not paths: a version or file name that
+        /// contains separators must never reach Path.Combine.
+        /// </summary>
+        private string GetVersionDirectory(string contentVersion)
+        {
+            if (!Game.AssetSystem.Storage.PathSafety.IsSimpleFileName(
+                contentVersion))
+            {
+                throw new ArgumentException(
+                    "Invalid contentVersion: " + (contentVersion ?? "<null>"),
+                    nameof(contentVersion));
+            }
+
+            return Path.Combine(Root, contentVersion);
+        }
+
+        private static string ValidateFileName(string fileName)
+        {
+            if (!Game.AssetSystem.Storage.PathSafety.IsSimpleFileName(fileName))
+            {
+                throw new ArgumentException(
+                    "Invalid bundle file name: " + (fileName ?? "<null>"),
+                    nameof(fileName));
+            }
+
+            return fileName;
         }
 
         public bool PrepareForResume(
@@ -55,7 +88,7 @@ namespace Game.AssetSystem.Integration
 
             try
             {
-                var versionDir = Path.Combine(Root, manifest.ContentVersion);
+                var versionDir = GetVersionDirectory(manifest.ContentVersion);
                 Directory.CreateDirectory(versionDir);
 
                 var partPath = GetPartPath(

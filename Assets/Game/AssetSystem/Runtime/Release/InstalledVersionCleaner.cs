@@ -82,10 +82,29 @@ namespace Game.AssetSystem.Release
                 {
                     var name = Path.GetFileName(dir);
 
-                    if (!string.IsNullOrEmpty(name))
+                    if (string.IsNullOrEmpty(name))
                     {
-                        stagingInUse.Add(name);
+                        continue;
                     }
+
+                    // Only a staging folder that still holds files (a .part or
+                    // its .meta) means an unfinished download. An empty folder
+                    // is a leftover and must not pin a version forever.
+                    if (!HasAnyFile(dir))
+                    {
+                        try
+                        {
+                            Directory.Delete(dir, false);
+                        }
+                        catch
+                        {
+                            // Best effort.
+                        }
+
+                        continue;
+                    }
+
+                    stagingInUse.Add(name);
                 }
             }
 
@@ -104,11 +123,9 @@ namespace Game.AssetSystem.Release
                 }
             }
 
-            // 非 active 版本按名字降序（语义版本号），取前 retainNonActiveVersions 个保留
-            allVersions.Sort((a, b) => string.Compare(
-                b,
-                a,
-                StringComparison.OrdinalIgnoreCase));
+            // 非 active 版本按版本号降序，取前 retainNonActiveVersions 个保留。
+            // 必须按数字比较：ordinal 会把 v10 排在 v9 前面，导致新的被删、旧的被留。
+            allVersions.Sort((a, b) => CompareVersionNames(b, a));
 
             var retained = new HashSet<string>(StringComparer.Ordinal);
             retained.Add(activeVersion);
@@ -167,6 +184,84 @@ namespace Game.AssetSystem.Release
             }
 
             return report;
+        }
+
+        private static bool HasAnyFile(string directory)
+        {
+            try
+            {
+                using (var entries = Directory.EnumerateFiles(
+                    directory,
+                    "*",
+                    SearchOption.TopDirectoryOnly).GetEnumerator())
+                {
+                    return entries.MoveNext();
+                }
+            }
+            catch
+            {
+                // Unreadable staging folder: assume it is in use.
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Compares two version folder names, treating the trailing digits as a
+        /// number so v10 sorts above v9. Names without a numeric tail fall back
+        /// to an ordinal comparison.
+        /// </summary>
+        private static int CompareVersionNames(string a, string b)
+        {
+            var aNumber = TrailingNumber(a, out var aPrefix);
+            var bNumber = TrailingNumber(b, out var bPrefix);
+
+            if (aNumber.HasValue && bNumber.HasValue)
+            {
+                var byPrefix = string.Compare(
+                    aPrefix,
+                    bPrefix,
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (byPrefix != 0)
+                {
+                    return byPrefix;
+                }
+
+                if (aNumber.Value != bNumber.Value)
+                {
+                    return aNumber.Value.CompareTo(bNumber.Value);
+                }
+            }
+
+            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static long? TrailingNumber(string value, out string prefix)
+        {
+            prefix = value ?? string.Empty;
+
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
+
+            var index = value.Length;
+
+            while (index > 0 && char.IsDigit(value[index - 1]))
+            {
+                index--;
+            }
+
+            if (index == value.Length)
+            {
+                return null;
+            }
+
+            prefix = value.Substring(0, index);
+
+            return long.TryParse(value.Substring(index), out var number)
+                ? number
+                : (long?)null;
         }
     }
 }

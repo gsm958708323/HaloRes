@@ -169,7 +169,8 @@ namespace Game.AssetSystem.Integration
         where T : class
     {
         private readonly TaskCompletionSource<AssetLoadResult<T>> _completion =
-            new TaskCompletionSource<AssetLoadResult<T>>();
+            new TaskCompletionSource<AssetLoadResult<T>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
         internal AssetLoadTask(
             AssetCache cache,

@@ -55,7 +55,9 @@ namespace Game.AssetSystem.Integration
                 ContentVersion = manifest == null
                     ? null
                     : manifest.ContentVersion,
-                BundleRoot = manifest == null
+                BundleRoot = manifest == null ||
+                             !Game.AssetSystem.Storage.PathSafety.IsSimpleFileName(
+                                 manifest.ContentVersion)
                     ? null
                     : GetVersionRoot(manifest.ContentVersion)
             };
@@ -68,6 +70,15 @@ namespace Game.AssetSystem.Integration
             {
                 result.Status = PatchApplyStatus.Failed;
                 result.Message = "Invalid manifest shape.";
+                return result;
+            }
+
+            if (!Game.AssetSystem.Storage.PathSafety.IsSimpleFileName(
+                manifest.ContentVersion))
+            {
+                result.Status = PatchApplyStatus.Failed;
+                result.Message = "Invalid content version: " +
+                                 (manifest.ContentVersion ?? "<null>");
                 return result;
             }
 
@@ -85,7 +96,18 @@ namespace Game.AssetSystem.Integration
                 }
 
                 var bundle = manifest.Bundles[i];
-                var targetPath = Path.Combine(versionRoot, bundle.FileName);
+
+                if (!Game.AssetSystem.Storage.PathSafety.TryResolveChild(
+                    versionRoot,
+                    bundle.FileName,
+                    out var targetPath,
+                    out var pathError))
+                {
+                    result.Status = PatchApplyStatus.Failed;
+                    result.Message = "Invalid bundle file name '" +
+                                     bundle.FileName + "': " + pathError;
+                    return result;
+                }
 
                 if (File.Exists(targetPath) &&
                     FileMatches(
@@ -193,6 +215,12 @@ namespace Game.AssetSystem.Integration
                 }
 
                 Directory.CreateDirectory(versionRoot);
+
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+
                 File.Move(partPath, targetPath);
 
                 // 只删 meta；part 已经被 move 到 target

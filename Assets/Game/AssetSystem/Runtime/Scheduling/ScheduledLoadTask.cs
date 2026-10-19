@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
 using Game.AssetSystem.Core;
+using Game.AssetSystem.Integration;
+using UnityEngine;
 
 namespace Game.AssetSystem.Scheduling
 {
@@ -153,6 +155,14 @@ namespace Game.AssetSystem.Scheduling
             ScheduledLoadErrorCode code,
             string message);
 
+        /// <summary>
+        /// Called when a worker produced a value that nobody will receive,
+        /// because the task was canceled after the worker had already finished.
+        /// The default implementation does nothing; typed tasks override it so
+        /// the abandoned payload can be released instead of leaking.
+        /// </summary>
+        internal abstract void ReleaseAbandonedResult(object value);
+
         protected void UntrackFromScope()
         {
             _scope?.Untrack(this);
@@ -163,18 +173,24 @@ namespace Game.AssetSystem.Scheduling
     {
         private readonly Func<CancellationToken, Task<T>> _worker;
 
+        private readonly Action<T> _releaseAbandoned;
+
         private readonly TaskCompletionSource<ScheduledLoadResult<T>> _completion =
-            new TaskCompletionSource<ScheduledLoadResult<T>>();
+            new TaskCompletionSource<ScheduledLoadResult<T>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
         internal ScheduledLoadTask(
             string key,
             LoadScope scope,
             AssetLoadPriority priority,
-            Func<CancellationToken, Task<T>> worker)
+            Func<CancellationToken, Task<T>> worker,
+            Action<T> releaseAbandoned = null)
             : base(key, scope, priority)
         {
             _worker = worker ??
                       throw new ArgumentNullException(nameof(worker));
+
+            _releaseAbandoned = releaseAbandoned;
         }
 
         public Task<ScheduledLoadResult<T>> CompletionTask
@@ -256,6 +272,38 @@ namespace Game.AssetSystem.Scheduling
 
             UntrackFromScope();
             _completion.TrySetResult(result);
+        }
+
+        internal override void ReleaseAbandonedResult(object value)
+        {
+            if (value == null)
+            {
+                return;
+            }
+
+            try
+            {
+                if (_releaseAbandoned != null)
+                {
+                    _releaseAbandoned((T)value);
+                    return;
+                }
+
+                if (value is IReleasableAssetPayload releasable)
+                {
+                    releasable.ReleasePayload();
+                    return;
+                }
+
+                if (value is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
         }
     }
 }

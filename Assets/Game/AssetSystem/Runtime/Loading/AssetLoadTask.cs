@@ -12,7 +12,8 @@ namespace Game.AssetSystem.Loading
         private readonly int _traceId;
 
         private readonly TaskCompletionSource<AssetLoadResult<T>> _completion =
-            new TaskCompletionSource<AssetLoadResult<T>>();
+            new TaskCompletionSource<AssetLoadResult<T>>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
         private AssetLoadStatus _status = AssetLoadStatus.Pending;
         private AssetLoadResult<T> _result;

@@ -1,0 +1,25 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 2806298379
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 56fd0ca9c0167fc938cf19ce4e757050
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 317bd54eab5cb736e3f2fbfb75d38660
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: e38b59ed625dbb057793fa87606f816a
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: a40003fa30d46564cbc8adb6b2283eb8, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopRoot.asset
+- Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopIcon.asset
+Dependencies:
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/.building-bddc8b516ea34b74b01df38faa87f885/bundle-v1/battle_fx

@@ -177,14 +177,22 @@ namespace Game.AssetSystem.Editor.Building
 
             result.OutputDirectory = outputDirectory;
 
+            // Build into a staging folder and publish only after the manifest
+            // is written. A failed build must not delete the last good output.
+            // The staging folder keeps the final folder name (BuildPipeline
+            // names the bundle manifest after the output folder), so it lives
+            // one level down inside a throwaway parent.
+            var stagingRoot = Path.Combine(
+                Path.GetDirectoryName(outputDirectory) ?? outputDirectory,
+                ".building-" + Guid.NewGuid().ToString("N"));
+
+            var stagingDirectory = Path.Combine(
+                stagingRoot,
+                Path.GetFileName(outputDirectory));
+
             try
             {
-                if (Directory.Exists(outputDirectory))
-                {
-                    Directory.Delete(outputDirectory, true);
-                }
-
-                Directory.CreateDirectory(outputDirectory);
+                Directory.CreateDirectory(stagingDirectory);
             }
             catch (Exception exception)
             {
@@ -223,7 +231,7 @@ namespace Game.AssetSystem.Editor.Building
             try
             {
                 builtManifest = BuildPipeline.BuildAssetBundles(
-                    outputDirectory,
+                    stagingDirectory,
                     builds,
                     BuildAssetBundleOptions.ChunkBasedCompression,
                     target);
@@ -237,6 +245,8 @@ namespace Game.AssetSystem.Editor.Building
                     null,
                     exception.GetType().Name + ": " +
                     exception.Message);
+
+                TryDeleteDirectory(stagingRoot);
                 return result;
             }
 
@@ -248,6 +258,8 @@ namespace Game.AssetSystem.Editor.Building
                     null,
                     null,
                     "BuildPipeline returned a null AssetBundleManifest.");
+
+                TryDeleteDirectory(stagingRoot);
                 return result;
             }
 
@@ -283,7 +295,7 @@ namespace Game.AssetSystem.Editor.Building
                     }
 
                     var bundlePath = Path.Combine(
-                        outputDirectory,
+                        stagingDirectory,
                         groupName);
 
                     if (!File.Exists(bundlePath))
@@ -454,6 +466,7 @@ namespace Game.AssetSystem.Editor.Building
             {
                 result.Success = false;
                 result.Manifest = null;
+                TryDeleteDirectory(stagingRoot);
                 TryWriteBuildResultReport(result);
                 return result;
             }
@@ -470,19 +483,17 @@ namespace Game.AssetSystem.Editor.Building
             };
 
             result.Manifest = manifest;
-            result.Success = true;
 
             try
             {
                 var manifestPath = Path.Combine(
-                    outputDirectory,
+                    stagingDirectory,
                     "lesson43-manifest.json");
 
                 WriteJson(manifestPath, manifest);
             }
             catch (Exception exception)
             {
-                result.Success = false;
                 result.Manifest = null;
 
                 AddError(
@@ -493,10 +504,104 @@ namespace Game.AssetSystem.Editor.Building
                     "Failed to write manifest. " +
                     exception.GetType().Name + ": " +
                     exception.Message);
+
+                TryDeleteDirectory(stagingRoot);
+                TryWriteBuildResultReport(result);
+                return result;
             }
+
+            if (!TryPublishDirectory(
+                stagingDirectory,
+                outputDirectory,
+                out var publishError))
+            {
+                result.Manifest = null;
+
+                AddError(
+                    result,
+                    BuildErrorCode.IoError,
+                    null,
+                    null,
+                    "Failed to publish build output. " + publishError);
+
+                TryDeleteDirectory(stagingRoot);
+                TryWriteBuildResultReport(result);
+                return result;
+            }
+
+            result.Success = true;
+
+            TryDeleteDirectory(stagingRoot);
 
             TryWriteBuildResultReport(result);
             return result;
+        }
+
+        /// <summary>
+        /// Swaps the freshly built staging folder into place. The previous
+        /// output is kept as <c>.previous</c> until the swap succeeded, so a
+        /// failed publish restores it instead of losing both.
+        /// </summary>
+        private static bool TryPublishDirectory(
+            string stagingDirectory,
+            string targetDirectory,
+            out string error)
+        {
+            error = null;
+
+            var previousDirectory = targetDirectory + ".previous";
+
+            try
+            {
+                if (Directory.Exists(previousDirectory))
+                {
+                    Directory.Delete(previousDirectory, true);
+                }
+
+                if (Directory.Exists(targetDirectory))
+                {
+                    Directory.Move(targetDirectory, previousDirectory);
+                }
+
+                try
+                {
+                    Directory.Move(stagingDirectory, targetDirectory);
+                }
+                catch
+                {
+                    if (!Directory.Exists(targetDirectory) &&
+                        Directory.Exists(previousDirectory))
+                    {
+                        Directory.Move(previousDirectory, targetDirectory);
+                    }
+
+                    throw;
+                }
+
+                TryDeleteDirectory(previousDirectory);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = exception.GetType().Name + ": " + exception.Message;
+                return false;
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+            }
+            catch
+            {
+                // Best effort. A leftover staging folder is harmless: the next
+                // build deletes it before starting.
+            }
         }
 
         private static void TryWriteBuildResultReport(

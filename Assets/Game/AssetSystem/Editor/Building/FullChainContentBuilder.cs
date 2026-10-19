@@ -26,6 +26,22 @@ namespace Game.AssetSystem.Editor.Building
 
             var bindings = BundleSampleContent.GetBindings();
             var target = EditorUserBuildSettings.activeBuildTarget;
+            var targetKey = PlatformVariantPolicy.GetPlatformKey(target);
+
+            // The builder writes under <platform key>/ while the runtime demo
+            // always reads FullChainLayout.PlatformKey. Building for a different
+            // active target would silently produce content the demo cannot see.
+            if (!string.Equals(
+                targetKey,
+                FullChainLayout.PlatformKey,
+                StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Active build target is " + targetKey +
+                    " but the demo reads " + FullChainLayout.PlatformKey +
+                    ". Switch the active build target before building.");
+            }
+
             var builder = new AssetBundleBuilder();
 
             var v1 = builder.Build(bindings, FullChainLayout.V1Version, target);
@@ -41,11 +57,20 @@ namespace Game.AssetSystem.Editor.Building
                 " assets=" + (v1.Manifest == null ? 0 : v1.Manifest.assets.Count) +
                 " output=" + v1.OutputDirectory);
 
+            BuildResult v2;
+
             ApplyV2Marker();
 
-            var v2 = builder.Build(bindings, FullChainLayout.V2Version, target);
-
-            RestoreV1Content();
+            try
+            {
+                v2 = builder.Build(bindings, FullChainLayout.V2Version, target);
+            }
+            finally
+            {
+                // Always undo the v2 marker, even when the build throws, or the
+                // sample asset stays dirty in the editor session.
+                RestoreV1Content();
+            }
 
             if (!v2.Success)
             {
@@ -59,7 +84,7 @@ namespace Game.AssetSystem.Editor.Building
                 " output=" + v2.OutputDirectory);
 
             Debug.Log(
-                "[FullChain] content ready. platform=" + FullChainLayout.PlatformKey +
+                "[FullChain] content ready. platform=" + targetKey +
                 " root=" + FullChainLayout.BuildRoot);
         }
 

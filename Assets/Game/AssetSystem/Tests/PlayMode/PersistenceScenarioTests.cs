@@ -125,6 +125,77 @@ namespace Game.AssetSystem.Tests
         }
 
         // ------------------------------------------------------------------
+        // 3.4 启动恢复：残留 .part / active.json.tmp 必须清掉，
+        //      已激活版本缺 bundle 必须被报告（而不是静默通过）
+        // ------------------------------------------------------------------
+        [UnityTest]
+        public IEnumerator L34_RecoverOnStartupCleansLeftoversAndReportsMissingBundles()
+        {
+            var store = new Storage.AssetFileStore(_root);
+            store.EnsureDirectories();
+
+            var temp = store.CreateTempFilePath("bundle_core.bundle");
+            File.WriteAllText(temp, "payload_v1");
+
+            var goodHash = Sha256File(temp);
+
+            var commit = store.CommitBundleFromTemp(
+                temp,
+                "v1",
+                "bundle_core.bundle",
+                goodHash);
+
+            Assert.IsTrue(commit.Success, "commit should succeed: " + commit.Error);
+
+            var activation = store.ActivateVersion(
+                "v1",
+                new List<Storage.BundleHashExpectation>
+                {
+                    new Storage.BundleHashExpectation("bundle_core.bundle", goodHash)
+                });
+
+            Assert.IsTrue(
+                activation.Success,
+                "activation should succeed: " + activation.Error);
+
+            // 模拟上次被强杀：两个未完成的下载 + 半个 active.json.tmp
+            File.WriteAllText(store.CreateTempFilePath("bundle_extra.bundle"), "partial");
+            File.WriteAllText(store.CreateTempFilePath("bundle_other.bundle"), "partial");
+            File.WriteAllText(store.ActiveStateTempPath, "{ half written");
+
+            var report = store.RecoverOnStartup();
+
+            Assert.IsTrue(
+                report.ActiveStateReadable,
+                "active state must survive recovery: " + report.Error.Message);
+
+            Assert.AreEqual("v1", report.ActiveVersion);
+            Assert.AreEqual(2, report.DeletedTempFileCount, "both .part files must be removed");
+            Assert.AreEqual(
+                1,
+                report.DeletedStateTempFileCount,
+                "active.json.tmp must be removed");
+            Assert.AreEqual(0, report.MissingBundleCount, "bundle is still on disk");
+            Assert.IsFalse(
+                File.Exists(store.ActiveStateTempPath),
+                "active.json.tmp must not survive recovery");
+
+            // 再删掉已激活的 bundle，恢复必须报告缺失
+            File.Delete(store.GetBundlePath("v1", "bundle_core.bundle"));
+
+            var second = store.RecoverOnStartup();
+
+            Assert.IsTrue(second.ActiveStateReadable);
+            Assert.AreEqual(
+                1,
+                second.MissingBundleCount,
+                "missing active bundle must be reported");
+            Assert.AreEqual(0, second.DeletedTempFileCount, "nothing left to clean");
+
+            yield return null;
+        }
+
+        // ------------------------------------------------------------------
         // 3.5：下载中断保留 .part，重建控制器后续传，最终激活 v2
         // ------------------------------------------------------------------
         [UnityTest]

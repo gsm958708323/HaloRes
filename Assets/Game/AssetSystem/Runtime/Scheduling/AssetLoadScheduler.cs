@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.Core;
+using UnityEngine;
 
 namespace Game.AssetSystem.Scheduling
 {
@@ -17,6 +18,8 @@ namespace Game.AssetSystem.Scheduling
 
         private int _runningCount;
         private int _frameNumber;
+        private int _budgetFrame = -1;
+        private int _startsThisFrame;
         private int _consecutiveHighStarts;
         private int _consecutiveNormalStarts;
         private int _startedTotal;
@@ -83,7 +86,8 @@ namespace Game.AssetSystem.Scheduling
             string key,
             LoadScope scope,
             AssetLoadPriority priority,
-            Func<CancellationToken, Task<T>> worker)
+            Func<CancellationToken, Task<T>> worker,
+            Action<T> releaseAbandoned = null)
         {
             EnsureMainThread();
 
@@ -101,7 +105,8 @@ namespace Game.AssetSystem.Scheduling
                 key,
                 scope,
                 priority,
-                worker);
+                worker,
+                releaseAbandoned);
 
             scope.Track(task);
 
@@ -117,21 +122,25 @@ namespace Game.AssetSystem.Scheduling
         {
             EnsureMainThread();
 
-            _frameNumber++;
+            BeginFrameIfNeeded();
 
-            var starts = 0;
-            var scanned = 0;
+            // Canceled tasks that are still sitting in a queue must not eat the
+            // scan budget: otherwise a burst of canceled High tasks can starve
+            // Normal/Low work for several frames. Dead entries are dequeued for
+            // free, bounded by one pass over the current queue.
+            var examined = 0;
+            var examineCap = Math.Max(1, MaxPendingScanPerFrame) + PendingCount;
 
-            while (starts < MaxStartsPerFrame &&
+            while (_startsThisFrame < MaxStartsPerFrame &&
                    _runningCount < MaxConcurrentLoads &&
-                   scanned < MaxPendingScanPerFrame)
+                   examined < examineCap)
             {
                 if (!TryDequeueNext(out var task))
                 {
                     break;
                 }
 
-                scanned++;
+                examined++;
 
                 if (task.IsDone)
                 {
@@ -158,6 +167,7 @@ namespace Game.AssetSystem.Scheduling
                 task.MarkRunning();
                 _runningCount++;
                 _startedTotal++;
+                _startsThisFrame++;
 
                 if (task.Priority == AssetLoadPriority.High)
                 {
@@ -176,8 +186,26 @@ namespace Game.AssetSystem.Scheduling
                 }
 
                 StartWorker(task);
-                starts++;
             }
+        }
+
+        /// <summary>
+        /// The start budget is a per-Unity-frame budget, not a per-Tick() budget.
+        /// Calling Tick() several times inside one frame may only spend the
+        /// remaining quota of that frame.
+        /// </summary>
+        private void BeginFrameIfNeeded()
+        {
+            var frame = Time.frameCount;
+
+            if (frame == _budgetFrame)
+            {
+                return;
+            }
+
+            _budgetFrame = frame;
+            _startsThisFrame = 0;
+            _frameNumber++;
         }
 
         private bool TryDequeueNext(out ScheduledLoadTaskBase task)
@@ -296,6 +324,10 @@ namespace Game.AssetSystem.Scheduling
             if (task.CancelRequested)
             {
                 _canceledRunningTotal++;
+
+                // The worker already produced a value, but nobody will receive
+                // it. Hand it to the abandonment hook so payloads do not leak.
+                task.ReleaseAbandonedResult(result);
 
                 task.CompleteCanceledOnMain(
                     task.CancelCode,

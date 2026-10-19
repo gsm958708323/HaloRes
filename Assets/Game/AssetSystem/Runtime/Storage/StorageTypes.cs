@@ -141,4 +141,56 @@ namespace Game.AssetSystem.Storage
                 activeStatePath);
         }
     }
+
+    /// <summary>
+    /// Outcome of <c>AssetFileStore.RecoverOnStartup()</c>.
+    /// A cold start always leaves something behind: interrupted downloads
+    /// (<c>.part</c>), a half-written <c>active.json.tmp</c>, or a bundle the
+    /// active state still points at but that is no longer on disk.
+    /// </summary>
+    public sealed class RecoveryReport
+    {
+        /// <summary>Leftover download files removed from the temp directory.</summary>
+        public int DeletedTempFileCount { get; }
+
+        /// <summary>Leftover <c>active.json.tmp</c> removed from the state directory.</summary>
+        public int DeletedStateTempFileCount { get; }
+
+        /// <summary>True when the active state could be read (or restored from backup).</summary>
+        public bool ActiveStateReadable { get; }
+
+        /// <summary>Content version the active state points at, null when unreadable.</summary>
+        public string ActiveVersion { get; }
+
+        /// <summary>Bundles referenced by the active state that are missing on disk.</summary>
+        public int MissingBundleCount { get; }
+
+        public StorageError Error { get; }
+
+        public RecoveryReport(
+            int deletedTempFileCount,
+            int deletedStateTempFileCount,
+            bool activeStateReadable,
+            string activeVersion,
+            int missingBundleCount,
+            StorageError error)
+        {
+            DeletedTempFileCount = deletedTempFileCount;
+            DeletedStateTempFileCount = deletedStateTempFileCount;
+            ActiveStateReadable = activeStateReadable;
+            ActiveVersion = activeVersion;
+            MissingBundleCount = missingBundleCount;
+            Error = error;
+        }
+
+        public override string ToString()
+        {
+            return "tempDeleted=" + DeletedTempFileCount +
+                   " stateTempDeleted=" + DeletedStateTempFileCount +
+                   " activeReadable=" + ActiveStateReadable +
+                   " activeVersion=" + (ActiveVersion ?? "<none>") +
+                   " missingBundles=" + MissingBundleCount +
+                   " error=" + Error;
+        }
+    }
 }

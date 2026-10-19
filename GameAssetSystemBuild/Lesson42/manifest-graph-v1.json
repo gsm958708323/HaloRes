@@ -1,0 +1,63 @@
+{
+    "schemaVersion": 1,
+    "contentVersion": "graph-v1",
+    "generatedAtUtc": "2026-10-19T16:07:21.1253872Z",
+    "assets": [
+        {
+            "assetKey": "battle/audio/hitsfx",
+            "bundleId": 0,
+            "bundleGroupName": "battle_audio",
+            "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset",
+            "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Audio/HitSfx.asset"
+        },
+        {
+            "assetKey": "battle/fx/fxa",
+            "bundleId": 1,
+            "bundleGroupName": "battle_fx",
+            "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset",
+            "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxA.asset"
+        },
+        {
+            "assetKey": "battle/fx/fxb",
+            "bundleId": 1,
+            "bundleGroupName": "battle_fx",
+            "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxB.asset",
+            "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/Battle/Fx/FxB.asset"
+        },
+        {
+            "assetKey": "ui/shop/shopicon",
+            "bundleId": 2,
+            "bundleGroupName": "ui_shop",
+            "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopIcon.asset",
+            "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopIcon.asset"
+        },
+        {
+            "assetKey": "ui/shop/shoproot",
+            "bundleId": 2,
+            "bundleGroupName": "ui_shop",
+            "internalAssetPath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopRoot.asset",
+            "sourcePath": "Assets/Game/AssetSystem/Lesson42Sample/Content/UI/Shop/ShopRoot.asset"
+        }
+    ],
+    "bundles": [
+        {
+            "bundleId": 0,
+            "bundleGroupName": "battle_audio",
+            "directDependencies": []
+        },
+        {
+            "bundleId": 1,
+            "bundleGroupName": "battle_fx",
+            "directDependencies": [
+                0
+            ]
+        },
+        {
+            "bundleId": 2,
+            "bundleGroupName": "ui_shop",
+            "directDependencies": [
+                1
+            ]
+        }
+    ]
+}

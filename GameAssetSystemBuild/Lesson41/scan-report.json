@@ -1,0 +1,118 @@
+{
+    "GeneratedAtUtc": "2026-10-19T15:42:03.4518861Z",
+    "ScanRoots": [
+        "Assets/Game/AssetSystem/Lesson41Sample/Content"
+    ],
+    "ScannedAssetCount": 7,
+    "Bindings": [
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Audio/HitSfx.txt",
+            "AssetGuid": "2fe74c8261f3ca948a0dbce12a5a5791",
+            "AssetKey": "battle/audio/hitsfx",
+            "BundleGroupName": "battle_audio",
+            "RuleName": "battle.audio",
+            "IsExplicitKey": false
+        },
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHit.txt",
+            "AssetGuid": "fdd67572f5c8bc84499244887fe5b862",
+            "AssetKey": "battle/fx/fx_hit",
+            "BundleGroupName": "battle_fx",
+            "RuleName": "battle.fx",
+            "IsExplicitKey": true
+        },
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHitAlt.txt",
+            "AssetGuid": "e96ae83ee9a0bda43b0c2ca47dbb6f82",
+            "AssetKey": "battle/fx/fx_hit",
+            "BundleGroupName": "battle_fx",
+            "RuleName": "battle.fx",
+            "IsExplicitKey": true
+        },
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/Invalid Name.txt",
+            "AssetGuid": "4498b7e1034b56145a7c8e7acad9b1ab",
+            "AssetKey": "ui/shop/invalid name",
+            "BundleGroupName": "ui_shop",
+            "RuleName": "ui.shop",
+            "IsExplicitKey": false
+        },
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/ShopIcon.txt",
+            "AssetGuid": "26be7e900b438074eab005ac4806b2b8",
+            "AssetKey": "ui/shop/shopicon",
+            "BundleGroupName": "ui_shop",
+            "RuleName": "ui.shop",
+            "IsExplicitKey": false
+        },
+        {
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/ShopPanel.txt",
+            "AssetGuid": "d12ef207b5a68a04b9600d8eb4d12b78",
+            "AssetKey": "ui/shop/shoppanel",
+            "BundleGroupName": "ui_shop",
+            "RuleName": "ui.shop",
+            "IsExplicitKey": false
+        }
+    ],
+    "Groups": [
+        {
+            "BundleGroupName": "battle_audio",
+            "AssetKeys": [
+                "battle/audio/hitsfx"
+            ],
+            "SourcePaths": [
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Audio/HitSfx.txt"
+            ]
+        },
+        {
+            "BundleGroupName": "battle_fx",
+            "AssetKeys": [
+                "battle/fx/fx_hit"
+            ],
+            "SourcePaths": [
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHit.txt",
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHitAlt.txt"
+            ]
+        },
+        {
+            "BundleGroupName": "ui_shop",
+            "AssetKeys": [
+                "ui/shop/invalid name",
+                "ui/shop/shopicon",
+                "ui/shop/shoppanel"
+            ],
+            "SourcePaths": [
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/Invalid Name.txt",
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/ShopIcon.txt",
+                "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/ShopPanel.txt"
+            ]
+        }
+    ],
+    "Errors": [
+        {
+            "Code": 14,
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Unmatched/Unmatched.txt",
+            "AssetKey": "",
+            "Message": "No group rule matched this asset."
+        },
+        {
+            "Code": 17,
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHit.txt",
+            "AssetKey": "battle/fx/fx_hit",
+            "Message": "Duplicate AssetKey. Conflicting source paths: Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHit.txt, Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHitAlt.txt"
+        },
+        {
+            "Code": 17,
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHitAlt.txt",
+            "AssetKey": "battle/fx/fx_hit",
+            "Message": "Duplicate AssetKey. Conflicting source paths: Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHit.txt, Assets/Game/AssetSystem/Lesson41Sample/Content/Battle/Fx/FxHitAlt.txt"
+        },
+        {
+            "Code": 16,
+            "SourcePath": "Assets/Game/AssetSystem/Lesson41Sample/Content/UI/Shop/Invalid Name.txt",
+            "AssetKey": "ui/shop/invalid name",
+            "Message": "Invalid character ' ' in key. Only lowercase a-z, 0-9, '/', '_', '-', '.' are allowed."
+        }
+    ],
+    "Warnings": []
+}

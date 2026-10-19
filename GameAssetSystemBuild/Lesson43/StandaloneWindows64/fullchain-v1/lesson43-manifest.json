@@ -3,7 +3,7 @@
     "contentVersion": "fullchain-v1",
     "targetPlatformKey": "StandaloneWindows64",
     "buildTarget": "StandaloneWindows64",
-    "generatedAtUtc": "2026-10-19T14:06:17.8289125Z",
+    "generatedAtUtc": "2026-10-19T16:10:12.9048176Z",
     "bundles": [
         {
             "bundleGroupName": "battle_audio",

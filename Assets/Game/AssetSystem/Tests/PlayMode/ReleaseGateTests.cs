@@ -131,6 +131,12 @@ namespace Game.AssetSystem.Tests
 
             Directory.CreateDirectory(Path.Combine(stagingRoot, "v2"));
 
+            // "Staging content" means a real partial download. An empty staging
+            // folder is a leftover and must not pin a version forever.
+            File.WriteAllBytes(
+                Path.Combine(stagingRoot, "v2", "bundle.part"),
+                new byte[] { 1, 2, 3 });
+
             var cleaner = new InstalledVersionCleaner();
             var report = cleaner.Clean(contentRoot, stagingRoot, "v3", 1);
 
@@ -156,6 +162,39 @@ namespace Game.AssetSystem.Tests
             Assert.AreEqual(1, report.Deleted, "one version deleted");
             Assert.AreEqual(1, report.SkippedBecauseStaging, "v2 skipped because of staging");
             CollectionAssert.Contains(report.RetainedVersions, "v4");
+        }
+
+        // ------------------------------------------------------------------
+        // 5.2 场景 4：版本号按数字排序，v10 不能被当成比 v9 更旧
+        // ------------------------------------------------------------------
+        [Test]
+        public void L52_InstalledVersionCleanerOrdersVersionsNumerically()
+        {
+            var contentRoot = Path.Combine(_root, "content-numeric");
+            var stagingRoot = Path.Combine(_root, "staging-numeric");
+
+            Directory.CreateDirectory(contentRoot);
+            Directory.CreateDirectory(stagingRoot);
+
+            var versions = new[] { "v8", "v9", "v10" };
+
+            for (var i = 0; i < versions.Length; i++)
+            {
+                Directory.CreateDirectory(Path.Combine(contentRoot, versions[i]));
+            }
+
+            var cleaner = new InstalledVersionCleaner();
+            var report = cleaner.Clean(contentRoot, stagingRoot, "v8", 1);
+
+            Assert.AreEqual(0, report.ErrorMessages.Count, "cleanup must not error");
+
+            Assert.IsTrue(
+                Directory.Exists(Path.Combine(contentRoot, "v10")),
+                "v10 is the newest non-active version and must be retained");
+
+            Assert.IsFalse(
+                Directory.Exists(Path.Combine(contentRoot, "v9")),
+                "v9 must be deleted; ordinal sorting would keep it and drop v10");
         }
 
         private static async Task<IBundlePayload> SlowPayloadAsync(int delayMs)

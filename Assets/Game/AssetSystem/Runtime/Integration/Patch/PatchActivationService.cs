@@ -22,7 +22,9 @@ namespace Game.AssetSystem.Integration
             string expectedPlatform,
             int liveHandles,
             bool safePoint,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            Func<int> liveHandlesProvider = null,
+            Func<bool> safePointProvider = null)
         {
             var before = ActiveContext == null
                 ? null
@@ -42,6 +44,15 @@ namespace Game.AssetSystem.Integration
             {
                 result.Status = PatchActivationStatus.InvalidManifest;
                 result.Message = "Invalid manifest shape.";
+                return result;
+            }
+
+            if (!Game.AssetSystem.Storage.PathSafety.IsSimpleFileName(
+                manifest.ContentVersion))
+            {
+                result.Status = PatchActivationStatus.InvalidManifest;
+                result.Message = "Invalid content version: " +
+                                 (manifest.ContentVersion ?? "<null>");
                 return result;
             }
 
@@ -94,16 +105,24 @@ namespace Game.AssetSystem.Integration
                 return result;
             }
 
-            if (liveHandles > 0)
+            var handlesNow = liveHandlesProvider != null
+                ? liveHandlesProvider()
+                : liveHandles;
+
+            if (handlesNow > 0)
             {
                 result.Status = PatchActivationStatus.RejectedActiveHandles;
                 result.Message = "Cannot activate while " +
-                                 liveHandles +
+                                 handlesNow +
                                  " live handle(s) exist.";
                 return result;
             }
 
-            if (!safePoint)
+            var safeNow = safePointProvider != null
+                ? safePointProvider()
+                : safePoint;
+
+            if (!safeNow)
             {
                 result.Status = PatchActivationStatus.RejectedUnsafePoint;
                 result.Message = "Cannot activate outside a safe point.";
@@ -112,23 +131,70 @@ namespace Game.AssetSystem.Integration
 
             if (!MainThreadPump.IsMainThread)
             {
-                var tcs = new TaskCompletionSource<PatchActivationResult>();
+                var tcs = new TaskCompletionSource<PatchActivationResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+
                 MainThreadPump.Post(
                     () => tcs.TrySetResult(
-                        Swap(manifest, bundleRoot, result)));
+                        Swap(
+                            manifest,
+                            bundleRoot,
+                            result,
+                            liveHandles,
+                            safePoint,
+                            liveHandlesProvider,
+                            safePointProvider)));
 
                 return await tcs.Task;
             }
 
-            return Swap(manifest, bundleRoot, result);
+            return Swap(
+                manifest,
+                bundleRoot,
+                result,
+                liveHandles,
+                safePoint,
+                liveHandlesProvider,
+                safePointProvider);
         }
 
         private PatchActivationResult Swap(
             PatchManifest manifest,
             string bundleRoot,
-            PatchActivationResult result)
+            PatchActivationResult result,
+            int liveHandles,
+            bool safePoint,
+            Func<int> liveHandlesProvider,
+            Func<bool> safePointProvider)
         {
             MainThreadPump.EnsureMainThread(nameof(Swap));
+
+            // Re-check with authoritative state inside the swap itself. The
+            // checks above may have happened before a Post, and the main thread
+            // could have handed out a new handle in between.
+            var handlesNow = liveHandlesProvider != null
+                ? liveHandlesProvider()
+                : liveHandles;
+
+            if (handlesNow > 0)
+            {
+                result.Status = PatchActivationStatus.RejectedActiveHandles;
+                result.Message = "Cannot activate while " +
+                                 handlesNow +
+                                 " live handle(s) exist.";
+                return result;
+            }
+
+            var safeNow = safePointProvider != null
+                ? safePointProvider()
+                : safePoint;
+
+            if (!safeNow)
+            {
+                result.Status = PatchActivationStatus.RejectedUnsafePoint;
+                result.Message = "Cannot activate outside a safe point.";
+                return result;
+            }
 
             var bundles = new List<RuntimeBundle>();
             var groupToId =
@@ -146,6 +212,18 @@ namespace Game.AssetSystem.Integration
                     return result;
                 }
 
+                if (!Game.AssetSystem.Storage.PathSafety.TryResolveChild(
+                    bundleRoot,
+                    b.FileName,
+                    out var bundlePath,
+                    out var pathError))
+                {
+                    result.Status = PatchActivationStatus.InvalidManifest;
+                    result.Message = "Invalid bundle file name '" +
+                                     b.FileName + "': " + pathError;
+                    return result;
+                }
+
                 var id = new BundleId(i);
                 groupToId[b.BundleGroupName] = id;
 
@@ -153,7 +231,7 @@ namespace Game.AssetSystem.Integration
                     id,
                     b.BundleGroupName,
                     b.FileName,
-                    Path.Combine(bundleRoot, b.FileName),
+                    bundlePath,
                     b.SizeBytes,
                     b.Sha256Hex));
             }
@@ -243,7 +321,17 @@ namespace Game.AssetSystem.Integration
                 var b = manifest.Bundles[i];
                 report.BundlesChecked++;
 
-                var path = Path.Combine(bundleRoot, b.FileName);
+                if (!Game.AssetSystem.Storage.PathSafety.TryResolveChild(
+                    bundleRoot,
+                    b.FileName,
+                    out var path,
+                    out var pathError))
+                {
+                    report.ErrorStatus = PatchActivationStatus.InvalidManifest;
+                    report.Message = "Invalid bundle file name '" +
+                                     b.FileName + "': " + pathError;
+                    return report;
+                }
 
                 if (!File.Exists(path))
                 {

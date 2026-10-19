@@ -57,6 +57,15 @@ namespace Game.AssetSystem.Integration
             }
 
             _disposed = true;
+
+            // ReleaseLease asserts main-thread affinity; defer a background
+            // dispose instead of throwing from it.
+            if (!MainThreadPump.IsMainThread)
+            {
+                MainThreadPump.Post(() => _owner.ReleaseLease(_id));
+                return;
+            }
+
             _owner.ReleaseLease(_id);
         }
     }
@@ -110,7 +119,8 @@ namespace Game.AssetSystem.Integration
         private sealed class Waiter
         {
             public readonly TaskCompletionSource<BundleAcquireResult> Completion =
-                new TaskCompletionSource<BundleAcquireResult>();
+                new TaskCompletionSource<BundleAcquireResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
             public string Owner;
         }
 

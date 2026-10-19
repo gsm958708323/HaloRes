@@ -26,7 +26,7 @@ Assets/Game/AssetSystem/
 │  ├─ Core/                             MainThreadPump（唯一主线程调度器）/ MainThreadAssetTask
 │  ├─ Loading/                          可取消加载任务 + 共享加载注册表（3.2/3.3 最终版）
 │  ├─ Scheduling/                       优先级 + 双预算调度器（3.6）
-│  ├─ Storage/                          文件事务 / Hash 校验 / active 指针（3.4/3.5 最终版）
+│  ├─ Storage/                          文件事务 / Hash 校验 / active 指针 / 启动恢复（3.4/3.5 最终版）
 │  ├─ Patch/                            下载、staging、应用（IPatchTransport 抽象）
 │  ├─ Bundles/                          BundleRuntime：引用计数 + 依赖租约 + 快照
 │  ├─ Assets/                           AssetCache：Handle / Scope / 加载任务
@@ -35,15 +35,16 @@ Assets/Game/AssetSystem/
 │  ├─ Integration/                      5.1 集成层：ActiveContentContext / ContentBundleRuntime
 │  │  └─ Patch/                         Patch 激活 + 下载编排 + 模拟 CDN
 │  ├─ Release/                          5.2 发布加固：加载门禁 / 安全点 / 版本清理 / 真实载荷
-│  └─ Demos/                            Interactive / FullChain 场景入口 + AssetSystemHud
+│  └─ Demos/                            Interactive / FullChain / Lessons 场景入口 + AssetSystemHud
 ├─ Editor/                              asmdef: Game.AssetSystem.Editor
 │  ├─ Scanning/                         扫描 + 分组规则 + Key 校验
 │  ├─ Manifest/                         依赖图 + Manifest 构建
 │  ├─ Building/                         AssetBundle 构建 / 校验 / 平台变体 / 全链路内容构建
+│  ├─ Inspector/                        构建期诊断窗口（扫描 / 依赖图 / 构建校验）
 │  └─ SampleContent/                    测试与 demo 用的示例资源生成器
 ├─ Tests/
 │  ├─ Editor/                           6 个 EditMode 用例
-│  └─ PlayMode/                         15 个 PlayMode 用例 + Support/ 测试替身
+│  └─ PlayMode/                         23 个 PlayMode 用例 + Support/ 测试替身
 └─ Lesson4xSample/                      测试生成的示例资源（非代码）
 ```
 
@@ -60,11 +61,11 @@ Assets/Game/AssetSystem/
 |---|---|
 | 每层只留最新实现 | Loading 取 3.3（`AcquireWaiter` 已被 `TryAcquireWaiter` 取代）、Storage 取 3.5、Scanning 取 4.2、Bundles/Assets 取 4.6（4.4/4.5 被 4.6 覆盖） |
 | 主线程调度器合并 | 3 个 `UnityMainThreadRunner` + 5 个 `UnityMainThreadPump` + `IntegrationMainThreadPump` → 1 个 `Core/MainThreadPump`（优先级队列 + 每帧预算 + `EnsureMainThread`） |
-| 课程 demo 删除 | 12 个逐课 bootstrap、3 个课程编辑器窗口、L51/L52 场景 demo 全部移除 |
+| 课程 demo 收敛 | 12 个逐课 bootstrap 合并为一个场景 + 枚举入口（`Demo_Lessons`，见 6.5）；3 个课程编辑器窗口还原为 `Editor/Inspector`（见 6.6） |
 | 类型名去课程号 | `Lesson43AssetBundleBuilder` → `AssetBundleBuilder`、`LessonHud` → `AssetSystemHud`；`LessonBootGate` 直接删除，改由场景入口组件启动 |
 | 测试保留并改到新 API | 21 个用例全保留；3.2 的两个用例改到 3.3 的 `TryAcquireWaiter`；测试替身集中到 `Tests/PlayMode/Support` |
 
-被删除的 4.4/4.5/4.7 与 5.1 演示代码，其行为语义仍由全链路用例与 Release 用例覆盖（见第 8 节）。
+4.4 / 4.5 / 4.7 与 5.1 的演示代码已在 `Demo_Lessons` 场景中还原，同时其行为语义仍由全链路用例与 Release 用例覆盖（见第 8 节）。
 
 ## 4. 文档代码本身的缺陷（已修）
 
@@ -178,8 +179,28 @@ Assets/Game/AssetSystem/
 ### 6.5 课程 demo 去哪了（课程 → 用例对照）
 
 原工程每节课都自带一个控制台 demo（`Lessons/L31..L52` 下的 `*LessonBootstrap`，4.1/4.2/4.3 是编辑器窗口），
-整理时随课程目录一并删除。**它们没有消失，而是变成了断言化用例**：每条用例跑的就是那节课的场景，
-失败会直接指出断言，比翻日志更可靠。
+整理时随课程目录一并删除。**它们的场景行为没有消失**：
+
+- 12 个运行时控制台 demo 已还原到统一场景 `Assets/Scenes/Demo_Lessons.unity`，由一个枚举选择（见下）。
+- 同样的场景也被断言化用例覆盖：失败会直接指出断言，比翻日志更可靠。
+
+**还原后的统一入口（Demo_Lessons）**
+
+| 项 | 说明 |
+|---|---|
+| 场景 | `Assets/Scenes/Demo_Lessons.unity`（已加入 Build Settings） |
+| 入口组件 | `LessonDemoBootstrap`，挂在 `[LessonDemoBootstrap]` 物体上 |
+| 选择方式 | Inspector 的 `Demo` 枚举（`LessonDemoKind`），或代码调用 `Select(kind)` + `RunSelected()` |
+| 可选课程 | 3.1 / 3.2 / 3.3 / 3.4 / 3.5 / 3.6 / 4.4 / 4.5 / 4.6 / 4.7 / 5.1 / 5.2 |
+| 代码位置 | `Assets/Game/AssetSystem/Runtime/Demos/Lessons/`（每课一个 `Lxx*Demo.cs`，公共替身在 `Support/`） |
+| 运行方式 | 打开场景 → 选枚举 → Play；控制台仍是原来的 `[Lesson]` / `[Scenario]` 前缀 |
+
+> 还原的只是 demo 脚本，没有还原 `Lessons/` 下的逐课框架快照。所有 demo 直接引用当前
+> `Game.AssetSystem.*`（`MainThreadPump`、`Loading`、`Scheduling`、`Storage`、`Patch`、`Bundles`、
+> `Assets`、`Memory`、`Integration`、`Release`），因此能持续跟着框架演进。
+>
+> 4.1 / 4.2 / 4.3 是编辑器窗口（扫描、依赖图、Bundle 构建），不属于“场景 + 枚举”模型，
+> 已单独还原为 `Editor/Inspector/` 下的三个诊断窗口，见 **6.6**。
 
 | 课程 | 原 demo | 现在的等价入口（测试用例） |
 |---|---|---|
@@ -212,13 +233,30 @@ Assets/Game/AssetSystem/
   `-testFilter` 支持 `L31_`、`L44_`、`FullChain_` 等前缀；4.1/4.2/4.3/3.5 的用例在 EditMode，需把 `-testPlatform` 换成 `EditMode`。
 - 想看该层的 Console 日志：单条跑用例即可，输出仍是 `[SharedLoad]` / `[BundleRuntime]` / `[AssetCache]` / `[FullChain]` 等前缀。
 
-**需要恢复某节课的原始控制台 demo**：文件仍在 git 提交 `47e44d0`，例如
+**运行时控制台 demo 与 3 个编辑器窗口都已还原**（见本节开头与 6.6），无需再从 git 取回。
+旧提交 `47e44d0` 只作为历史参考保留。
 
-```bash
-git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
-```
+### 6.6 构建期诊断窗口（Inspect 菜单）
 
-取回后必须改命名空间（`.L36` 等后缀已移除）并挂到场景入口组件上，否则不会启动。
+4.1 / 4.2 / 4.3 的三个课程窗口已按新命名空间还原到 `Editor/Inspector/`，窗口名去掉课程号，
+菜单收拢到 `Tools/Game Asset System/Inspect/` 下。
+
+| 菜单 | 窗口 | 能做什么 |
+|---|---|---|
+| `Inspect/1. Scan & Group` | `AssetScanWindow` | ① 生成示例内容 ② 扫描 + 校验（显示 scanned / bindings / groups / errors / warnings，错误与警告可滚动查看，并把报告写到 `GameAssetSystemBuild/Lesson41/scan-report.json`）③ 清理示例内容 |
+| `Inspect/2. Dependency Graph & Manifest` | `DependencyGraphWindow` | ① 生成干净依赖图 ② 注入缺失依赖 ③ 注入 Bundle 环路 ④ 扫描 + 建 Manifest（写 `GameAssetSystemBuild/Lesson42/manifest-<版本>.json`）⑤ 清理；面板显示扫描/构建汇总与逐条错误（含 edge `from → to`） |
+| `Inspect/3. Bundle Build & Validate` | `BundleBuildWindow` | ① 生成示例内容 ② 按当前平台构建 ③ 校验产物 ④ 模拟错误平台校验 ⑤ 破坏第一个 Bundle（验证 hash 失败路径）⑥ 清理；面板显示构建汇总（bundle 数、总大小、输出目录、平台键）与校验错误列表 |
+
+本轮实测（三个窗口均实际点过一遍）：
+
+| 窗口 | 输出 |
+|---|---|
+| Scan | `scanned=7 bindings=6 groups=3 errors=4 warnings=0`，报告已落盘 |
+| Graph | `assets=5 bundles=3 edges=2 errors=0`，manifest 写入 `Lesson42/manifest-graph-v1.json` |
+| Build | `assets=5 bundles=3` → `bundle-v1`，校验 `bundlesLoaded=3` |
+
+> 三个窗口只读写 `GameAssetSystemBuild/` 与 `Lesson4xSample/` 下的示例资源，不碰工程其它资产。
+> 构建产物的平台目录仍沿用 `GameAssetSystemBuild/Lesson43/<平台>/`，以免已有的全链路产物失效。
 
 ## 7. 测试清单与结果
 
@@ -233,7 +271,7 @@ git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
 | `L35_StorageRejectsUnsafeFileNames` | 3.5 文件名安全 | 拒绝 `../`、路径分隔符、空名 |
 | `FullChain_BuildsV1AndV2Bundles` | 全链路前置 | v1/v2 清单与 Bundle 文件存在且不同 |
 
-### 7.2 PlayMode（15/15 通过，1.8s）
+### 7.2 PlayMode（23/23 通过，2.4s）
 
 | 用例 | 对应文档 | 断言要点 |
 |---|---|---|
@@ -246,11 +284,18 @@ git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
 | `L35_DownloadInterruptedThenResumes` | 3.5 | 中断保留 `.part`；重建控制器后按 offset 续传并激活 v2 |
 | `L36_HighPriorityStartsFirst_WithinBudget` | 3.6 场景 1 | high 先启动；每帧 ≤2；并发 ≤2 |
 | `L36_ScopeDisposeCancelsQueuedLoads` | 3.6 场景 2 | 排队任务全部取消且不进 worker |
+| `L36_CancelAfterWorkerFinished_ReleasesAbandonedResult` | 3.6 取消竞态 | worker 已产出后取消：任务记 Canceled，结果走 `releaseAbandoned` 恰好释放 1 次 |
 | `L44_SharedBundleRefCountAndDependencyLeases` | 4.4 场景 1 | 只加载一次；Idle 保留 payload；依赖租约随父卸载释放 |
 | `L44_CancelOneWaiter_OtherGetsLease` | 4.4 场景 2 | 取消者无 lease；Bundle 只启动一次 |
 | `L44_MissingDependencyFailsWithoutLease` | 4.4 场景 3 | `DependencyMissing` 结构化失败，无悬挂引用 |
+| `L47_ActivationRejectsBundleNameEscapingRoot` | 4.7 文件名安全 | `../escape.bundle` → `InvalidManifest`，ActiveContext 不变 |
+| `L47_ActivationRejectsPlatformMismatch` | 4.7 §5.3 | `PlatformMismatch`，不激活 |
+| `L47_ActivationReportsMissingBundle` | 4.7 §5.3 | `BundleMissing`，不激活 |
+| `L47_ActivationReportsHashMismatch` | 4.7 §5.3 | 尺寸对、Hash 错 → `HashMismatch`，不激活 |
+| `L47_ActivationRechecksHandlesInsideSwap` | 4.7 检查与 Swap 的窗口 | 预检读到 0、Swap 内读到 1 → `RejectedActiveHandles`，`ActivationCount==0` |
 | `L52_AssetLoadGateRespectsStartAndConcurrencyBudget` | 5.2 场景 1 | 每帧启动 ≤2、并发 ≤2、全部完成 |
-| `L52_InstalledVersionCleanerRetainsActiveAndNewest` | 5.2 场景 3 | 保留 active + 最新 1 个；staging 占用的版本不删 |
+| `L52_InstalledVersionCleanerRetainsActiveAndNewest` | 5.2 场景 3 | 保留 active + 最新 1 个；有 `.part` 的 staging 版本不删，空 staging 目录不占用 |
+| `L52_InstalledVersionCleanerOrdersVersionsNumerically` | 5.2 版本排序 | v8 激活时保留 v10、删 v9（ordinal 会反） |
 | `FullChain_RealBundlesAcrossVersionSwitch` | 5.1 场景 S + 4.3/5.2 | 见 5.3 表格，全部通过 |
 
 ### 7.3 演示冒烟
@@ -271,7 +316,7 @@ git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
 | 4.1 / 4.2 / 4.3 | 独立 EditMode 用例（含真实 Bundle 构建与 `LoadAsset` 校验） |
 | 4.4 | 独立 PlayMode 用例（引用计数 / 依赖租约 / 缺依赖） |
 | 4.5 / 4.6 | 由全链路用例覆盖：`AssetCache`/`AssetScope`/`AssetHandle` 共享与释放、`AssetMemoryEvaluator` 回收（Asset 先于 Bundle）、Handle 归零 |
-| 4.7 | 由全链路用例间接覆盖：激活的 `RejectedActiveHandles` / `RejectedUnsafePoint` / 成功激活与运行时重建语义，走的是 5.1 `PatchActivationService` |
+| 4.7 | 独立 PlayMode 用例（`ActivationGuardTests`）：文件名越界 / 平台不符 / 缺 Bundle / Hash 错 / Swap 内句柄复核；主路径仍由全链路用例覆盖 |
 | 5.1 | 全链路用例（场景 S 主路径 + 三条拒绝路径） |
 | 5.2 | `AssetLoadGate` / `InstalledVersionCleaner` 独立用例；`RealBundlePayloadFactory` 由全链路用例覆盖 |
 
@@ -279,10 +324,11 @@ git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
 
 | 缺口 | 现状 | 补齐建议 |
 |---|---|---|
-| 4.5 / 4.6 的**独立**单测 | 仅集成层断言 | 补 `Lesson45AssetRuntime` 的 Scope 释放/失败路径、`AssetMemoryPolicy` 预算与诊断快照的独立用例 |
-| 4.7 `PatchActivationController` 直接断言 | 只验证了 5.1 的等价语义 | 用同一份 v1/v2 构建产物构造 `PatchManifestDescriptor`，断言 `BundleMissing` / `HashMismatch` / `PlatformMismatch` 各自的结构化结果 |
+| 4.5 / 4.6 的**独立**单测 | 仅集成层断言 | 补 `AssetRuntime` 的 Scope 释放/失败路径、`AssetMemoryPolicy` 预算与诊断快照的独立用例 |
 | 5.2 `SafePointGate` | 未单测 | 补“有待处理请求时安全点不可用”的用例 |
 | 3.5 服务器不支持 Range 的回退 | 未单测 | 设 `server.SupportsRange=false` 且已有 `.part`，断言删除 `.part` 并从 0 重下 |
+| 4.2 环依赖 / 4.3 hash 损坏的失败用例 | 只有主路径 | 构造环依赖图与损坏 Bundle，断言结构化错误码 |
+| PlayMode 全链路在缺内容时 `Assert.Ignore` | 未构建时是“假绿” | CI 先跑 `Build Full-Chain Demo Content`，再跑 PlayMode |
 | 构建期 CI 脚本 | 仅静态落地 | 需要真实 Unity 命令行环境才能验证 |
 
 ## 9. 如何运行
@@ -313,14 +359,56 @@ git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
 - **看全链路日志演示**：打开 `Assets/Scenes/Demo_FullChain.unity`，按 Play。
 - **测试与演示互不干扰**：测试不加载 demo 场景，演示也不再自动启动，
   所以跑测试不会被演示日志污染（15 个 PlayMode 用例已验证）。
-- **构建期工具**：`Tools/Game Asset System/Build Full-Chain Demo Content`（4.1→4.2→4.3 全流程）。
+- **构建期诊断窗口**：`Tools/Game Asset System/Inspect/1. Scan & Group`、`2. Dependency Graph & Manifest`、`3. Bundle Build & Validate`（见 6.6）。
+- **构建期一键流程**：`Tools/Game Asset System/Build Full-Chain Demo Content`（4.1→4.2→4.3 全流程）。
 - **一键构建 + 进演示**：`Tools/Game Asset System/Build Content And Play Demo`。
 
-## 10. 结论
+## 10. 代码审查复核（对当前合并后代码）
+
+外部审查是按 15 份课程快照写的（`L44/Bundles/BundleRuntime.cs` 之类）。合并成一份最终版之后，
+**每个问题只剩一处副本**，"只改最新一课不会改掉前面的副本"这条前提已经消失。逐条对当前源码复核如下。
+
+### 10.1 高优先级
+
+| # | 当前位置 | 是否成立 | 处理 |
+|---|---|---|---|
+| 1 | `Runtime/Bundles/BundleRuntime.cs` `TryUnloadIdle` | 成立 | **已修**：先 `payload.Release()`，再释放依赖租约；与资产层"先资产后 Bundle"一致 |
+| 2 | `Runtime/Scheduling/AssetLoadScheduler.cs` `OnWorkerCompleted` | 成立 | **已修**：新增 `releaseAbandoned` 钩子（`Enqueue` 可选参数），取消时把 worker 已产出的结果交还调用方释放；默认兜底 `IReleasableAssetPayload` / `IDisposable` |
+| 3 | 同文件 `Tick()` | 成立 | **已修**：预算绑 `Time.frameCount`，同帧多次 `Tick()` 只消耗剩余配额 |
+| 4 | `Runtime/Storage/AssetFileStore.cs` `CommitBundleFromTemp` | 成立 | **已修**：终态 Hash 失败删除目标并从 `.bak` 回滚；`.bak` 保留到校验通过再删；`active.json.bak` 也不再立刻删除，`TryLoadActiveState` 的恢复分支因此真正可达 |
+| 5 | `Runtime/Integration/Patch/*` | 成立 | **已修**：新增 `Storage/PathSafety`，`GetFullPath` 后要求仍在 root 之下；接入激活、下载、staging 三处 |
+| 6 | `PatchActivationService.ActivateAsync/Swap` | 成立 | **已修**：`Swap` 内用 `liveHandlesProvider` / `safePointProvider` 复核；预检与 Swap 各读一次，窗口内的新 Handle 会挡住激活 |
+| 7 | `Runtime/Demos/Interactive/AssetDemoController.cs` `UpdateCubes` | 部分成立 | **已修**：`Renderer.material` 的 getter 只在首次实例化，不是"每帧新建"，但每帧访问 getter 仍依赖隐式实例化。改为 `CreateCube` 建一份实例、行内缓存、`sharedMaterial` 赋值，销毁时只销毁这一份 |
+| 8 | 同文件 `Toggle` / `SwitchVersion` | 成立 | **已修**：切换期间置 `_switching` 拒绝新加载；`RebuildRuntime` 提升代际；完成回调比对代际，过期结果直接 Dispose 不写回行 |
+
+### 10.2 中优先级
+
+| # | 结论 | 处理 |
+|---|---|---|
+| 取消的排队任务占扫描预算 | 成立 | **已修**：已取消/已完成的条目不再消耗 `MaxPendingScanPerFrame`，单帧最多扫一趟队列 |
+| L45 的 `AssetCacheRegistry` 未接线 | **不适用** | 合并后没有 `AssetCacheRegistry`；`AssetCache` 自持 entry 表，`CancelWaiter` 在 entry 缺失时直接 `CompleteCanceled`，不会落到 `InternalError` |
+| CancellationToken 只在启动瞬间看一眼 | 部分成立 | **已修一半**：`BundleLease.Dispose` 在后台线程改为 Post 到主线程，不再抛 `EnsureMainThread`；**未修** token 侧取消注册（现有 demo/用例都走显式 `Cancel()`，语义等价，登记为后续项） |
+| 同一 `.part` 没有串行化 | 部分成立 | **已修一半**：`PatchDownloadService` 提交前先删同名目标，消除 Windows 上 `File.Move` 目标存在的抛错与半套版本；**未修** 同一 `.part` 的并发写串行化（需要按版本加锁，登记为后续项） |
+| 真实 Bundle 回收卸不干净 | 成立 | **未修**：`RealBundlePayload.Release` 仍是 `Unload(false)`，`LoadFromFile` 也不按绝对路径去重。改成 `Unload(true)` 会影响仍在句柄外持有对象的调用方，属于语义变更，需单独评估 |
+| 版本清理按字符串排序 | 成立 | **已修**：按尾部数字比较（v10 > v9）；staging 目录只有还留着文件才算占用，空目录顺手删除并补了用例 |
+| 构建失败会毁掉上一份成功产物 | 成立 | **已修**：构建先写 `<平台>/.building-<guid>/<版本>/`，清单写完再整体换入；换入失败回滚 `.previous`；失败路径清理暂存目录 |
+| 全链路会弄脏编辑器会话 | 部分成立 | **已修**：构建前校验 Active Build Target 的平台键与 `FullChainLayout.PlatformKey` 一致（不一致直接报错），末尾日志改打印真实 key；v2 标记改成 `try/finally` 恢复。**未修** `FullChainRunner` 失败路径不卸载已加载 Bundle（演示/测试代码，登记为后续项） |
+
+### 10.3 复核后的验证
+
+| 项 | 结果 |
+|---|---|
+| 编译 | 0 error（Unity 6000.0.32f1） |
+| EditMode | 6/6 通过（含真实 Bundle 构建，验证暂存目录换入后产物结构不变） |
+| PlayMode | 23/23 通过（新增 7 条：取消释放、4.7 四类拒绝、Swap 复核、版本数字排序） |
+| 构建产物 | `GameAssetSystemBuild/Lesson43/StandaloneWindows64/` 下无 `.building` / `.previous` 残留 |
+
+## 11. 结论
 
 - 15 个课程快照已合并为一份最终版框架（71 个文件 / 17,460 行），编译零错误；
 - 新增的全链路 demo 用**真实 AssetBundle 产物**跑通“构建 → 激活 → 加载 → 回收”，补上了文档里缺失的那一段；
 - 新增可点击的交互演示：真实 Bundle + 引用计数 + 版本切换 + 内存回收全部可视化，零预制体、任何场景可跑；
-- 21 个用例全部通过，覆盖并发/取消/引用计数/文件事务/断点续传/调度预算/构建期校验/版本切换；
+- 29 个用例全部通过，覆盖并发/取消/引用计数/文件事务/断点续传/调度预算/构建期校验/版本切换/激活拒绝；
 - 文档自身存在 7 类缺陷（含 2 类跨版本运行时缺陷），已修复并记录；
-- 剩余缺口在 8.2 中列明，其中 4.7 与 5.2 的安全点门禁值得优先补。
+- 外部审查的 8 条高优先级问题在当前代码上全部成立，已全部修复；8 条中优先级中 5 条已修、1 条不适用、2 条部分修复（见第 10 节）；
+- 剩余缺口在 8.2 中列明，其中 4.7 的拒绝路径已补上直接断言，`SafePointGate` 与 3.5 Range 回退仍待补。

@@ -124,6 +124,12 @@ namespace Game.AssetSystem.Bundles
         {
             return _bundles.TryGetValue(id, out info);
         }
+
+        /// <summary>Read-only view of every bundle in the catalog.</summary>
+        public IEnumerable<BundleInfo> All
+        {
+            get { return _bundles.Values; }
+        }
     }
 
     public interface IBundlePayload
@@ -143,7 +149,8 @@ namespace Game.AssetSystem.Bundles
     public sealed class BundleAcquireTask
     {
         private readonly TaskCompletionSource<BundleAcquireResult> _completion =
-            new TaskCompletionSource<BundleAcquireResult>();
+            new TaskCompletionSource<BundleAcquireResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
         private readonly BundleRuntime _runtime;
 
@@ -301,6 +308,15 @@ namespace Game.AssetSystem.Bundles
             }
 
             _disposed = true;
+
+            // ReleaseLease mutates runtime state and asserts main-thread
+            // affinity, so a background Dispose is deferred instead of throwing.
+            if (!MainThreadPump.IsMainThread)
+            {
+                MainThreadPump.Post(() => _runtime.ReleaseLease(_id));
+                return;
+            }
+
             _runtime.ReleaseLease(_id);
         }
     }
@@ -455,13 +471,10 @@ namespace Game.AssetSystem.Bundles
 
             entry.State = BundleRuntimeState.Unloading;
 
-            for (var i = 0; i < entry.DependencyLeases.Count; i++)
-            {
-                entry.DependencyLeases[i].Dispose();
-            }
-
-            entry.DependencyLeases.Clear();
-
+            // Payload first, dependency leases second. A bundle payload keeps
+            // references into its dependency bundles; releasing the dependency
+            // lease first would let a real AssetBundle be unloaded while this
+            // payload still points at it.
             var payload = entry.Payload;
             entry.Payload = null;
 
@@ -473,6 +486,13 @@ namespace Game.AssetSystem.Bundles
             {
                 Debug.LogException(exception);
             }
+
+            for (var i = 0; i < entry.DependencyLeases.Count; i++)
+            {
+                entry.DependencyLeases[i].Dispose();
+            }
+
+            entry.DependencyLeases.Clear();
 
             entry.State = BundleRuntimeState.NotLoaded;
             entry.LastError = null;

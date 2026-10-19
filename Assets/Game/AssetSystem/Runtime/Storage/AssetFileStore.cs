@@ -10,6 +10,9 @@ namespace Game.AssetSystem.Storage
     {
         public const int ActiveStateSchemaVersion = 1;
 
+        /// <summary>Suffix of the previous file kept during a replace.</summary>
+        public const string BackupSuffix = ".bak";
+
         public string RootDirectory { get; }
         public string ContentDirectory { get; }
         public string TempDirectory { get; }
@@ -240,13 +243,24 @@ namespace Game.AssetSystem.Storage
                     out var finalActualHash,
                     out var finalHashError))
                 {
+                    // The temp file has already replaced the target. Leaving it
+                    // there would hand a corrupt bundle to the next activation,
+                    // so roll the target back instead of just reporting failure.
+                    var restored = RollBackReplacedFile(targetPath);
+
                     return BundleCommitResult.Failed(
                         new StorageError(
                             StorageErrorCode.IoError,
                             "Final bundle hash verification failed. actual=" +
-                            finalActualHash + ", error=" + finalHashError),
+                            finalActualHash + ", error=" + finalHashError +
+                            (restored
+                                ? " The previous file was restored."
+                                : " The corrupt file was removed.")),
                         targetPath);
                 }
+
+                // The replaced file is only dropped once the new one verified.
+                TryDeleteFile(targetPath + BackupSuffix);
 
                 return BundleCommitResult.Committed(targetPath);
             }
@@ -371,8 +385,9 @@ namespace Game.AssetSystem.Storage
             {
                 WriteAllTextWithFlush(ActiveStateTempPath, json);
                 MoveWithReplace(ActiveStateTempPath, ActiveStatePath);
-                TryDeleteFile(ActiveStateBackupPath);
 
+                // Keep active.json.bak: TryLoadActiveState restores from it when
+                // the new state turns out to be unreadable.
                 return ActivationResult.Succeeded(ActiveStatePath);
             }
             catch (Exception exception)
@@ -426,6 +441,100 @@ namespace Game.AssetSystem.Storage
 
             state = null;
             return false;
+        }
+
+        /// <summary>
+        /// Cold-start repair. Removes interrupted downloads and a half-written
+        /// active state, restores <c>active.json</c> from its backup when needed,
+        /// and reports how many bundles the active version is missing.
+        ///
+        /// Safe to call on every launch: it only deletes staging leftovers and
+        /// never touches committed content.
+        /// </summary>
+        public RecoveryReport RecoverOnStartup()
+        {
+            EnsureDirectories();
+
+            var deletedTempFileCount = 0;
+            var deletedStateTempFileCount = 0;
+
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(
+                    TempDirectory,
+                    "*",
+                    SearchOption.TopDirectoryOnly))
+                {
+                    if (TryDeleteFile(file))
+                    {
+                        deletedTempFileCount++;
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                return new RecoveryReport(
+                    deletedTempFileCount,
+                    deletedStateTempFileCount,
+                    false,
+                    null,
+                    0,
+                    new StorageError(
+                        StorageErrorCode.IoError,
+                        "Failed to clean temp files: " + exception.Message));
+            }
+
+            if (TryDeleteFile(ActiveStateTempPath))
+            {
+                deletedStateTempFileCount++;
+            }
+
+            ActiveStateRecord state;
+            StorageError error;
+
+            if (!TryLoadActiveState(out state, out error))
+            {
+                return new RecoveryReport(
+                    deletedTempFileCount,
+                    deletedStateTempFileCount,
+                    false,
+                    null,
+                    0,
+                    error);
+            }
+
+            var missingBundleCount = 0;
+
+            if (state.bundles != null)
+            {
+                for (var i = 0; i < state.bundles.Length; i++)
+                {
+                    var bundle = state.bundles[i];
+
+                    if (bundle == null || !IsSimpleFileName(bundle.bundleFileName))
+                    {
+                        missingBundleCount++;
+                        continue;
+                    }
+
+                    var bundlePath = GetBundlePath(
+                        state.contentVersion,
+                        bundle.bundleFileName);
+
+                    if (!File.Exists(bundlePath))
+                    {
+                        missingBundleCount++;
+                    }
+                }
+            }
+
+            return new RecoveryReport(
+                deletedTempFileCount,
+                deletedStateTempFileCount,
+                true,
+                state.contentVersion,
+                missingBundleCount,
+                default(StorageError));
         }
 
         private static bool TryReadActiveStateFile(
@@ -509,6 +618,13 @@ namespace Game.AssetSystem.Storage
             }
         }
 
+        /// <summary>
+        /// Replaces <paramref name="destinationPath"/> with
+        /// <paramref name="sourcePath"/>, keeping the previous destination in
+        /// <c>&lt;destination&gt;.bak</c>. The caller deletes the backup once
+        /// the new file has been verified; leaving the backup in place lets
+        /// <see cref="RollBackReplacedFile"/> undo a bad replacement.
+        /// </summary>
         private static void MoveWithReplace(
             string sourcePath,
             string destinationPath)
@@ -519,7 +635,7 @@ namespace Game.AssetSystem.Storage
                 return;
             }
 
-            var backupPath = destinationPath + ".bak";
+            var backupPath = destinationPath + BackupSuffix;
 
             try
             {
@@ -529,12 +645,6 @@ namespace Game.AssetSystem.Storage
                 }
 
                 File.Replace(sourcePath, destinationPath, backupPath);
-
-                if (File.Exists(backupPath))
-                {
-                    File.Delete(backupPath);
-                }
-
                 return;
             }
             catch (PlatformNotSupportedException)
@@ -567,8 +677,33 @@ namespace Game.AssetSystem.Storage
 
                 throw;
             }
+        }
 
-            TryDeleteFile(backupPath);
+        /// <summary>
+        /// Removes a replaced file that failed verification and restores the
+        /// previous version when a backup survived. Returns true when the old
+        /// file came back.
+        /// </summary>
+        private static bool RollBackReplacedFile(string targetPath)
+        {
+            var backupPath = targetPath + BackupSuffix;
+
+            TryDeleteFile(targetPath);
+
+            if (!File.Exists(backupPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                File.Move(backupPath, targetPath);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryDeleteFile(string path)
