@@ -153,24 +153,27 @@ Assets/Game/AssetSystem/
 | `Captures/demo-3-reclaimed.png` | 回收内存 | Asset 5 / Bundle 3 回收，全部 NotLoaded，方块消失 |
 | `Captures/demo-4-v2.png` | 激活 v2 后再加载 | 版本徽章 `fullchain-v2`，日志出现 `→ ShopRoot_v2`，激活次数 2 |
 
-### 6.4 进入方式（两个 demo 怎么跑）
+### 6.4 进入方式（三个 demo 怎么跑）
 
-整理后只剩两个 demo，**各有一个专属场景，进场景按 Play 就跑，不再用菜单切模式**。
-两个场景都需要先有 v1/v2 真实 Bundle 产物。
+整理后有三个 demo，**各有一个专属场景，进场景按 Play 就跑，不再用菜单切模式**。
+三个场景都需要先有真实 Bundle 产物。
 
 | 场景 | 入口 | 跑什么 |
 |---|---|---|
 | `Assets/Scenes/Demo_Interactive.unity` | `[DemoBootstrap] Interactive` → `InteractiveDemoBootstrap` | 可点击资产流：加载 / 共享去重 / 释放 / 回收 / v1↔v2 切换 + 3D 视口 |
 | `Assets/Scenes/Demo_FullChain.unity` | `[DemoBootstrap] FullChain` → `FullChainDemoBootstrap` | 端到端链路：Console 输出 `[FullChain][A]…[G]` + summary，HUD 同步镜像 |
+| `Assets/Scenes/Demo_FullFeature.unity` | `[DemoBootstrap] FullFeature` → `FullFeatureDemoBootstrap` | 全功能交互：依赖租约 / 共享 / 加载预算 / 下载中断续传 / 两阶段激活 / 内存分级回收（见 **6.7**） |
 
 用法：
 
-1. 首次或产物缺失时，先执行一次 `Tools/Game Asset System/Build Full-Chain Demo Content`；
+1. 首次或产物缺失时，先执行一次 `Tools/Game Asset System/Build Full-Chain Demo Content`
+   （`Demo_FullFeature` 用 `Tools/Game Asset System/Build Full-Feature Demo Content`）；
 2. 双击 `Assets/Scenes/Demo_Interactive.unity` → 按 **Play** → 出现 `[AssetDemo]`；
 3. 双击 `Assets/Scenes/Demo_FullChain.unity` → 按 **Play** → 出现 `[FullChainScenarioDemo]` + `[AssetSystemHud]`；
-4. 其他场景（如 `SampleScene`）按 Play 不会再启动任何 demo。
+4. 双击 `Assets/Scenes/Demo_FullFeature.unity` → 按 **Play** → 出现全功能面板（HUD 会被面板隐藏）；
+5. 其他场景（如 `SampleScene`）按 Play 不会再启动任何 demo。
 
-两个场景都已加入 Build Settings，可直接在 Build Profile 里单独构建。
+三个场景都已加入 Build Settings，可直接在 Build Profile 里单独构建。
 
 - 一键版：`Tools/Game Asset System/Build Content And Play Demo`（构建后自动进 Play，进的是当前打开的场景）。
 - 清理产物：`Tools/Game Asset System/Clean Full-Chain Demo Content`。
@@ -258,9 +261,76 @@ Assets/Game/AssetSystem/
 > 三个窗口只读写 `GameAssetSystemBuild/` 与 `Lesson4xSample/` 下的示例资源，不碰工程其它资产。
 > 构建产物的平台目录仍沿用 `GameAssetSystemBuild/Lesson43/<平台>/`，以免已有的全链路产物失效。
 
+### 6.7 全功能交互式 Demo（Demo_FullFeature）
+
+一个场景走完「加载 → 共享 → 释放 → 下载中断 → 续传 → 激活 → 重建运行时 → 内存回收」全链路，
+全部按钮直接调用框架 API，界面上显示的每个数字都是运行时快照读回来的，没有模拟状态。
+
+**代码位置**
+
+| 文件 | 作用 |
+|---|---|
+| `Runtime/Demos/FullFeature/FullFeatureSession.cs` | 客户端全流程：首启安装 / 下载 / 激活 / 重建 / 加载 / 释放 / 分级回收 + 每帧 Tick |
+| `Runtime/Demos/FullFeature/FullFeatureDashboard.cs` | uGUI 面板（零预制体，复用 `AssetDemoUiKit`） |
+| `Runtime/Demos/FullFeature/FullFeatureLayout.cs` | 服务端 / 客户端路径契约、构建清单 → `PatchManifest` 转换、`active.json` 结构 |
+| `Runtime/Demos/FullFeature/FullFeatureScenario.cs` | 同一套调用的脚本化版本，PlayMode 用例直接跑它 |
+| `Runtime/Demos/FullFeature/SharedInfo.cs` / `AssetInfo.cs` / `FullFeatureContent.cs` | 示例内容类型与 Key / Bundle 组名 |
+| `Editor/Building/FullFeatureContentBuilder.cs` | 生成 v1/v2/v3 内容并构建 3 组 Bundle，菜单 `Tools/Game Asset System/Build Full-Feature Demo Content` |
+
+**内容与依赖**
+
+```text
+GameAssetSystemBuild/FullFeature/<平台>/{v1,v2,v3}/
+├─ ui_shop     (Panel.asset, 依赖 shared)
+├─ battle_fx   (Hit.asset,   依赖 shared)
+├─ shared      (Shared.asset)
+└─ lesson43-manifest.json   ← bundles[].dependencies 写明依赖
+```
+
+运行时把该目录当「服务端」，首次启动把 v1 拷进
+`Application.persistentDataPath/AssetSystemFullFeatureDemo/content/v1/`，
+之后所有版本都从 staging（`.part` + `.part.meta`）下载、校验、换入。
+
+**界面分区**
+
+| 区域 | 内容 |
+|---|---|
+| 状态行 | Active 版本 / SafePoint / 每帧加载预算 / Scope 数；Assets 与 Bundles 的 R·I·L·H 计数；内存压力与暂存文件 |
+| ① 加载与共享 | `ui/panel(A)`、`fx/hit(B)`、`ui/panel(C)`、释放全部 Handle |
+| ② 安全点 | 进入主菜单（ON）/ 进入战斗（OFF） |
+| ③ Patch 下载 | v1/v2/v3 选择、Range 开关、完整下载 / 70% 中断 / 中断当前下载、进度条与结果 |
+| ④ 激活 | 激活选中版本（校验 Hash → 活动 Handle → 安全点 → Swap → 重建运行时） |
+| ⑤ 内存压力 | Medium / High / Critical / 恢复正常，分级预算 2 / 6 / 64 次卸载 |
+| ⑥ 日志 | 最近 8 条，带时间戳 |
+| 右上「当前内容」 | Active 版本、最近加载的 label、`shared.version`、`shared.color` 色块 |
+| 右下「Bundle / 资产状态」 | 每个 Bundle 的 State / refs / 是否持有 payload、Idle 资产列表、暂存与状态目录、建议操作顺序 |
+
+**实测读数（真实点过一遍）**
+
+| 步骤 | 读数 |
+|---|---|
+| 首启 | `恢复/安装 v1` → `[Activation] <none> -> v1` → 面板 Active v1，Bundles 全 NotLoaded |
+| 加载 `ui/panel (A)` | `Assets R1/I0/L0/H1`、`Bundles R2/I0/L2/Ref2`、表格里 `shared` 与 `ui_shop` 均 Ready 且 `payload`、色块 `#E65252`（v1） |
+| 70% 中断 | 进度条停在 ~70%，`Failed · 提交 2 · 跳过 0 · 续传 0`，`暂存 v2 1 个 .part（194 字节）· 1 个 .meta` |
+| 完整下载 | `提交 1 · 跳过 2 · 续传 194 字节`，暂存目录清空 |
+| 有 Handle 时激活 | `RejectedActiveHandles Cannot activate while 1 live handle(s) exist.` |
+| 安全点 OFF 激活 | `RejectedUnsafePoint` |
+| 安全点 ON 激活 | `Succeeded Activated v2 (3 bundles, 3 assets)`，运行时重建，计数归零 |
+| 切版后加载 | `v2/UI/Panel`、`shared.version v2`、色块 `#4CCC7A`（绿） |
+
+**框架侧为它补的能力（都是可选参数，不改变既有调用行为）**
+
+| 能力 | 位置 |
+|---|---|
+| `RuntimeBundle.DirectDependencies` + `PatchBundleDescriptor.Dependencies` | `Integration/ActiveContentContext.cs`、`Integration/Patch/PatchTypes.cs` |
+| 激活时解析依赖组名、拒绝未知依赖 / 自依赖 / 环 | `Integration/Patch/PatchActivationService.cs` |
+| Bundle 先加载依赖、卸载时「先 payload 后依赖租约」 | `Integration/ContentBundleRuntime.cs` |
+| `SnapshotBundles()` / `TotalUserRefs` 供面板只读展示 | 同上 |
+| 构建清单携带 `dependencies`、`Build()` 可指定输出根 | `Editor/Building/{BuildTypes,AssetBundleBuilder}.cs` |
+
 ## 7. 测试清单与结果
 
-### 7.1 EditMode（6/6 通过，17.7s）
+### 7.1 EditMode（7/7 通过）
 
 | 用例 | 对应文档 | 断言要点 |
 |---|---|---|
@@ -270,8 +340,9 @@ Assets/Game/AssetSystem/
 | `L43_BuildsRealBundlesAndRejectsWrongPlatform` | 4.3 §5.2 §5.3 | 真实构建 3 Bundle，`LoadAsset` 校验 5/5；错误平台必须失败 |
 | `L35_StorageRejectsUnsafeFileNames` | 3.5 文件名安全 | 拒绝 `../`、路径分隔符、空名 |
 | `FullChain_BuildsV1AndV2Bundles` | 全链路前置 | v1/v2 清单与 Bundle 文件存在且不同 |
+| `FullFeature_BuildsThreeVersionsWithSharedDependency` | 6.7 前置 | v1/v2/v3 各 3 Bundle / 3 资产；`ui_shop`、`battle_fx` 的 `dependencies` 恰为 `shared`，`shared` 无依赖 |
 
-### 7.2 PlayMode（23/23 通过，2.4s）
+### 7.2 PlayMode（24/24 通过）
 
 | 用例 | 对应文档 | 断言要点 |
 |---|---|---|
@@ -297,10 +368,11 @@ Assets/Game/AssetSystem/
 | `L52_InstalledVersionCleanerRetainsActiveAndNewest` | 5.2 场景 3 | 保留 active + 最新 1 个；有 `.part` 的 staging 版本不删，空 staging 目录不占用 |
 | `L52_InstalledVersionCleanerOrdersVersionsNumerically` | 5.2 版本排序 | v8 激活时保留 v10、删 v9（ordinal 会反） |
 | `FullChain_RealBundlesAcrossVersionSwitch` | 5.1 场景 S + 4.3/5.2 | 见 5.3 表格，全部通过 |
+| `FullFeature_ShareInterruptResumeActivateReclaim` | 6.7 全链路 | 首启 v1；首次加载 2 payload（ui_shop+shared），battle_fx 复用 shared（3），缓存命中不再加载；释放后 2 Idle 资产 / 3 payload 保留；Critical 回收归零；70% 中断留 `.part`、续传 `resume>0`；有 Handle / 无安全点被拒；激活 v2 后 `shared.version=v2`；最终 payload 归零 |
 
 ### 7.3 演示冒烟
 
-整理后只剩两个演示（交互 DemoApp / 全链路 FullChain），各自绑定一个场景，进入哪个场景就跑哪个。PlayMode 用例在 `InitTestScene` 里运行，不会加载 demo 场景，控制台不产生无关 `LogError`。
+整理后有三个演示（交互 DemoApp / 全链路 FullChain / 全功能 FullFeature），各自绑定一个场景，进入哪个场景就跑哪个。PlayMode 用例在 `InitTestScene` 里运行，不会加载 demo 场景，控制台不产生无关 `LogError`。
 
 ## 8. 覆盖矩阵与剩余缺口
 
@@ -355,12 +427,15 @@ Assets/Game/AssetSystem/
 ### 9.3 命令
 
 - **跑测试**：`Window > General > Test Runner` → EditMode / PlayMode → Run All。
-- **看交互演示**：直接按 **Play**（默认模式）。
+- **看交互演示**：打开 `Assets/Scenes/Demo_Interactive.unity`，按 Play。
 - **看全链路日志演示**：打开 `Assets/Scenes/Demo_FullChain.unity`，按 Play。
+- **看全功能交互演示**：`Tools/Game Asset System/Build Full-Feature Demo Content` 一次，
+  再打开 `Assets/Scenes/Demo_FullFeature.unity` 按 Play（见 6.7）。
 - **测试与演示互不干扰**：测试不加载 demo 场景，演示也不再自动启动，
   所以跑测试不会被演示日志污染（15 个 PlayMode 用例已验证）。
 - **构建期诊断窗口**：`Tools/Game Asset System/Inspect/1. Scan & Group`、`2. Dependency Graph & Manifest`、`3. Bundle Build & Validate`（见 6.6）。
 - **构建期一键流程**：`Tools/Game Asset System/Build Full-Chain Demo Content`（4.1→4.2→4.3 全流程）。
+- **全功能 Demo 内容**：`Tools/Game Asset System/Build Full-Feature Demo Content`（v1/v2/v3 三套，含依赖声明）。
 - **一键构建 + 进演示**：`Tools/Game Asset System/Build Content And Play Demo`。
 
 ## 10. 代码审查复核（对当前合并后代码）

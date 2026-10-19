@@ -9,6 +9,12 @@ namespace Game.AssetSystem.Integration
         public string FileName;
         public long SizeBytes;
         public string Sha256Hex;
+
+        /// <summary>
+        /// Bundle group names that must be loaded before this bundle. Optional:
+        /// manifests written before dependency tracking leave it null.
+        /// </summary>
+        public string[] Dependencies;
     }
 
     [Serializable]

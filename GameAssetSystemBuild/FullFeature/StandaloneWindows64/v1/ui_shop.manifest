@@ -1,0 +1,26 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 68066581
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 4708b395028460bde083234d691b10ca
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 202030a57eaddba0c66994b895df6d72
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 0c2022e05d39b032d2efb96fbc83b8e4
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: 95eed629ad4bc6745a3ce4b565c0a0a8, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: d2ca5889b37dd7444a0580af36ae760d, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Game/AssetSystem/FullFeatureSample/v1/UI/Panel.asset
+Dependencies:
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-08cc58f52aa9472081da1d05e084a68f/v1/shared

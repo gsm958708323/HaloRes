@@ -1,0 +1,23 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 1597989299
+Hashes:
+  AssetFileHash:
+    serializedVersion: 2
+    Hash: 79685648b46b002953452362046638ed
+  TypeTreeHash:
+    serializedVersion: 2
+    Hash: 39de31f66b58893dd71ca3203a4db193
+  IncrementalBuildHash:
+    serializedVersion: 2
+    Hash: 5a3b1c8d2d010545716ffd36fc816943
+HashAppended: 0
+ClassTypes:
+- Class: 114
+  Script: {fileID: 11500000, guid: 95eed629ad4bc6745a3ce4b565c0a0a8, type: 3}
+- Class: 115
+  Script: {instanceID: 0}
+SerializeReferenceClassIdentifiers: []
+Assets:
+- Assets/Game/AssetSystem/FullFeatureSample/v1/Shared/Shared.asset
+Dependencies: []

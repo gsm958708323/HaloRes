@@ -5,12 +5,25 @@ namespace Game.AssetSystem.Integration
 {
     public sealed class RuntimeBundle
     {
+        private readonly BundleId[] _directDependencies;
+
         public BundleId Id { get; }
         public string BundleGroupName { get; }
         public string FileName { get; }
         public string AbsolutePath { get; }
         public long SizeBytes { get; }
         public string Sha256Hex { get; }
+
+        /// <summary>
+        /// Bundles that must be loaded before this one. A bundle payload keeps
+        /// references into its dependencies, so the runtime acquires a lease on
+        /// each of them and releases those leases only after the payload is
+        /// unloaded.
+        /// </summary>
+        public IReadOnlyList<BundleId> DirectDependencies
+        {
+            get { return _directDependencies; }
+        }
 
         public RuntimeBundle(
             BundleId id,
@@ -19,6 +32,25 @@ namespace Game.AssetSystem.Integration
             string absolutePath,
             long sizeBytes,
             string sha256Hex)
+            : this(
+                id,
+                bundleGroupName,
+                fileName,
+                absolutePath,
+                sizeBytes,
+                sha256Hex,
+                null)
+        {
+        }
+
+        public RuntimeBundle(
+            BundleId id,
+            string bundleGroupName,
+            string fileName,
+            string absolutePath,
+            long sizeBytes,
+            string sha256Hex,
+            BundleId[] directDependencies)
         {
             Id = id;
             BundleGroupName = bundleGroupName;
@@ -26,6 +58,7 @@ namespace Game.AssetSystem.Integration
             AbsolutePath = absolutePath;
             SizeBytes = sizeBytes;
             Sha256Hex = sha256Hex;
+            _directDependencies = directDependencies ?? Array.Empty<BundleId>();
         }
     }
 
@@ -120,6 +153,18 @@ namespace Game.AssetSystem.Integration
         public bool TryGetBundle(BundleId id, out RuntimeBundle bundle)
         {
             return _bundles.TryGetValue(id, out bundle);
+        }
+
+        /// <summary>Every bundle the active content declares, in no order.</summary>
+        public IEnumerable<RuntimeBundle> AllBundles
+        {
+            get { return _bundles.Values; }
+        }
+
+        /// <summary>Every asset the active content declares, in no order.</summary>
+        public IEnumerable<RuntimeAsset> AllAssets
+        {
+            get { return _assets.Values; }
         }
     }
 }

@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2ca5889b37dd7444a0580af36ae760d, type: 3}
+  m_Name: Panel
+  m_EditorClassIdentifier: 
+  label: v1/UI/Panel
+  shared: {fileID: 11400000, guid: 57cb35496b659bb4987d54c213c554ed, type: 2}

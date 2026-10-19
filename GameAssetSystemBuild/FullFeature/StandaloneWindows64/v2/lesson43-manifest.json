@@ -1,0 +1,54 @@
+{
+    "schemaVersion": 1,
+    "contentVersion": "v2",
+    "targetPlatformKey": "StandaloneWindows64",
+    "buildTarget": "StandaloneWindows64",
+    "generatedAtUtc": "2026-10-19T16:44:32.0498020Z",
+    "bundles": [
+        {
+            "bundleGroupName": "battle_fx",
+            "bundleFileName": "battle_fx",
+            "sizeBytes": 1959,
+            "sha256Hex": "8d028070fd33d21b25bf3debffdac5213598408d51de84537628a60ba13aa0f4",
+            "dependencies": [
+                "shared"
+            ]
+        },
+        {
+            "bundleGroupName": "shared",
+            "bundleFileName": "shared",
+            "sizeBytes": 1956,
+            "sha256Hex": "1a0e6b1a6a82c3a805f683b2a9899b95872da924dc6beaefd85e7b351d29fefe",
+            "dependencies": []
+        },
+        {
+            "bundleGroupName": "ui_shop",
+            "bundleFileName": "ui_shop",
+            "sizeBytes": 1955,
+            "sha256Hex": "a4e91c7585cc59ec0d901643c0676b09f79726bd761a0a38ca508446f81c6334",
+            "dependencies": [
+                "shared"
+            ]
+        }
+    ],
+    "assets": [
+        {
+            "assetKey": "fx/hit",
+            "sourcePath": "Assets/Game/AssetSystem/FullFeatureSample/v2/Fx/Hit.asset",
+            "internalAssetPath": "assets/game/assetsystem/fullfeaturesample/v2/fx/hit.asset",
+            "bundleGroupName": "battle_fx"
+        },
+        {
+            "assetKey": "shared/info",
+            "sourcePath": "Assets/Game/AssetSystem/FullFeatureSample/v2/Shared/Shared.asset",
+            "internalAssetPath": "assets/game/assetsystem/fullfeaturesample/v2/shared/shared.asset",
+            "bundleGroupName": "shared"
+        },
+        {
+            "assetKey": "ui/panel",
+            "sourcePath": "Assets/Game/AssetSystem/FullFeatureSample/v2/UI/Panel.asset",
+            "internalAssetPath": "assets/game/assetsystem/fullfeaturesample/v2/ui/panel.asset",
+            "bundleGroupName": "ui_shop"
+        }
+    ]
+}

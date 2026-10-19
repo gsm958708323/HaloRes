@@ -200,6 +200,9 @@ namespace Game.AssetSystem.Integration
             var groupToId =
                 new Dictionary<string, BundleId>(StringComparer.Ordinal);
 
+            var ids = new BundleId[manifest.Bundles.Length];
+            var bundlePaths = new string[manifest.Bundles.Length];
+
             for (var i = 0; i < manifest.Bundles.Length; i++)
             {
                 var b = manifest.Bundles[i];
@@ -226,14 +229,77 @@ namespace Game.AssetSystem.Integration
 
                 var id = new BundleId(i);
                 groupToId[b.BundleGroupName] = id;
+                ids[i] = id;
+                bundlePaths[i] = bundlePath;
+            }
+
+            // Dependency group names are data: resolve them against the groups
+            // this manifest actually declares, and refuse self references and
+            // cycles here rather than deadlocking the runtime later.
+            var dependencies = new BundleId[manifest.Bundles.Length][];
+
+            for (var i = 0; i < manifest.Bundles.Length; i++)
+            {
+                var declared = manifest.Bundles[i].Dependencies;
+
+                if (declared == null || declared.Length == 0)
+                {
+                    dependencies[i] = Array.Empty<BundleId>();
+                    continue;
+                }
+
+                var resolved = new List<BundleId>(declared.Length);
+
+                for (var d = 0; d < declared.Length; d++)
+                {
+                    var name = declared[d];
+
+                    if (!groupToId.TryGetValue(name ?? string.Empty, out var dependencyId))
+                    {
+                        result.Status = PatchActivationStatus.InvalidManifest;
+                        result.Message = "Unknown dependency group '" +
+                                         name + "' declared by bundle " +
+                                         manifest.Bundles[i].BundleGroupName;
+                        return result;
+                    }
+
+                    if (dependencyId == ids[i])
+                    {
+                        result.Status = PatchActivationStatus.InvalidManifest;
+                        result.Message = "Bundle " +
+                                         manifest.Bundles[i].BundleGroupName +
+                                         " depends on itself.";
+                        return result;
+                    }
+
+                    if (!resolved.Contains(dependencyId))
+                    {
+                        resolved.Add(dependencyId);
+                    }
+                }
+
+                dependencies[i] = resolved.ToArray();
+            }
+
+            if (HasDependencyCycle(ids, dependencies))
+            {
+                result.Status = PatchActivationStatus.InvalidManifest;
+                result.Message = "Circular bundle dependency detected.";
+                return result;
+            }
+
+            for (var i = 0; i < manifest.Bundles.Length; i++)
+            {
+                var b = manifest.Bundles[i];
 
                 bundles.Add(new RuntimeBundle(
-                    id,
+                    ids[i],
                     b.BundleGroupName,
                     b.FileName,
-                    bundlePath,
+                    bundlePaths[i],
                     b.SizeBytes,
-                    b.Sha256Hex));
+                    b.Sha256Hex,
+                    dependencies[i]));
             }
 
             var assets = new List<RuntimeAsset>();
@@ -282,6 +348,71 @@ namespace Game.AssetSystem.Integration
                 result.ActiveVersionAfter);
 
             return result;
+        }
+
+        /// <summary>
+        /// Iterative DFS colouring. Bundle ids are positional (id == index in
+        /// the manifest), so the adjacency list is index based.
+        /// </summary>
+        private static bool HasDependencyCycle(
+            BundleId[] ids,
+            BundleId[][] dependencies)
+        {
+            var state = new int[ids.Length];
+            var stack = new Stack<int>();
+
+            for (var root = 0; root < ids.Length; root++)
+            {
+                if (state[root] != 0)
+                {
+                    continue;
+                }
+
+                stack.Push(root);
+
+                while (stack.Count > 0)
+                {
+                    var index = stack.Peek();
+
+                    if (state[index] == 0)
+                    {
+                        state[index] = 1;
+                    }
+
+                    var advanced = false;
+                    var direct = dependencies[index];
+
+                    for (var d = 0; d < direct.Length; d++)
+                    {
+                        var next = direct[d].Value;
+
+                        if (next < 0 || next >= state.Length)
+                        {
+                            continue;
+                        }
+
+                        if (state[next] == 1)
+                        {
+                            return true;
+                        }
+
+                        if (state[next] == 0)
+                        {
+                            stack.Push(next);
+                            advanced = true;
+                            break;
+                        }
+                    }
+
+                    if (!advanced)
+                    {
+                        state[index] = 2;
+                        stack.Pop();
+                    }
+                }
+            }
+
+            return false;
         }
 
         private struct ValidationReport

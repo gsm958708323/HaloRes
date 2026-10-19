@@ -32,6 +32,13 @@ namespace Game.AssetSystem.Editor.Building
         public string sourcePath;
         public string assetKey;
         public string bundleGroupName;
+
+        /// <summary>
+        /// Bundle groups this bundle needs loaded first. The build records the
+        /// union of these into the manifest so the runtime can acquire a lease
+        /// on every dependency before loading the bundle.
+        /// </summary>
+        public string[] dependencies;
     }
 
     [Serializable]
@@ -50,6 +57,9 @@ namespace Game.AssetSystem.Editor.Building
         public string bundleFileName;
         public long sizeBytes;
         public string sha256Hex;
+
+        /// <summary>Declared dependency groups, empty when none.</summary>
+        public string[] dependencies = Array.Empty<string>();
     }
 
     [Serializable]

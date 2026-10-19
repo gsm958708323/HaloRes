@@ -14,7 +14,8 @@ namespace Game.AssetSystem.Editor.Building
         public BuildResult Build(
             IReadOnlyList<AssetBinding> bindings,
             string contentVersion,
-            BuildTarget target)
+            BuildTarget target,
+            string outputRootOverride = null)
         {
             var result = new BuildResult
             {
@@ -51,6 +52,8 @@ namespace Game.AssetSystem.Editor.Building
 
             var groupToAssets =
                 new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            var groupDependencies =
+                new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
             var seenSourcePaths =
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenAssetKeys =
@@ -159,6 +162,80 @@ namespace Game.AssetSystem.Editor.Building
 
                 assetList.Add(sourcePath);
                 sortedBindings.Add(binding);
+
+                if (!groupDependencies.TryGetValue(
+                    binding.bundleGroupName,
+                    out var declaredDependencies))
+                {
+                    declaredDependencies =
+                        new SortedSet<string>(StringComparer.Ordinal);
+                    groupDependencies.Add(
+                        binding.bundleGroupName,
+                        declaredDependencies);
+                }
+
+                if (binding.dependencies == null)
+                {
+                    continue;
+                }
+
+                for (var d = 0; d < binding.dependencies.Length; d++)
+                {
+                    var dependency = binding.dependencies[d];
+
+                    if (string.IsNullOrEmpty(dependency))
+                    {
+                        continue;
+                    }
+
+                    if (!PlatformVariantPolicy.IsSimpleName(dependency))
+                    {
+                        AddError(
+                            result,
+                            BuildErrorCode.InvalidBinding,
+                            binding.assetKey,
+                            sourcePath,
+                            "Invalid dependency group name: " + dependency);
+                        continue;
+                    }
+
+                    if (string.Equals(
+                        dependency,
+                        binding.bundleGroupName,
+                        StringComparison.Ordinal))
+                    {
+                        AddError(
+                            result,
+                            BuildErrorCode.InvalidBinding,
+                            binding.assetKey,
+                            sourcePath,
+                            "Bundle group cannot depend on itself: " +
+                            dependency);
+                        continue;
+                    }
+
+                    declaredDependencies.Add(dependency);
+                }
+            }
+
+            // Dependencies must resolve inside this build plan: a manifest that
+            // names a group the build never produced could not be activated.
+            foreach (var pair in groupDependencies)
+            {
+                foreach (var dependency in pair.Value)
+                {
+                    if (!groupToAssets.ContainsKey(dependency))
+                    {
+                        AddError(
+                            result,
+                            BuildErrorCode.InvalidBinding,
+                            null,
+                            null,
+                            "Bundle group '" + pair.Key +
+                            "' depends on '" + dependency +
+                            "', which is not part of this build plan.");
+                    }
+                }
             }
 
             if (result.Errors.Count > 0)
@@ -169,11 +246,14 @@ namespace Game.AssetSystem.Editor.Building
             var projectRoot =
                 PlatformVariantPolicy.GetProjectRoot();
 
-            var outputDirectory =
-                PlatformVariantPolicy.GetPlatformOutputDirectory(
+            var outputDirectory = string.IsNullOrEmpty(outputRootOverride)
+                ? PlatformVariantPolicy.GetPlatformOutputDirectory(
                     projectRoot,
                     result.ContentVersion,
-                    target);
+                    target)
+                : Path.Combine(
+                    Path.GetFullPath(outputRootOverride),
+                    result.ContentVersion);
 
             result.OutputDirectory = outputDirectory;
 
@@ -349,7 +429,12 @@ namespace Game.AssetSystem.Editor.Building
                         bundleGroupName = groupName,
                         bundleFileName = groupName,
                         sizeBytes = sizeBytes,
-                        sha256Hex = hashHex
+                        sha256Hex = hashHex,
+                        dependencies = groupDependencies.TryGetValue(
+                            groupName,
+                            out var declared)
+                            ? new List<string>(declared).ToArray()
+                            : Array.Empty<string>()
                     });
 
                     try

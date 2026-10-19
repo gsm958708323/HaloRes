@@ -95,6 +95,28 @@ namespace Game.AssetSystem.Integration
         }
     }
 
+    public enum ContentBundleState
+    {
+        NotLoaded = 0,
+        Loading = 1,
+        Ready = 2,
+        Idle = 3,
+        Failed = 4
+    }
+
+    /// <summary>One row of <see cref="BundleRuntime.SnapshotBundles"/>.</summary>
+    public sealed class ContentBundleSnapshotEntry
+    {
+        public BundleId Id;
+        public string GroupName;
+        public string FileName;
+        public ContentBundleState State;
+        public int UserRefs;
+        public int WaitingCount;
+        public bool HasPayload;
+        public string LastError;
+    }
+
     public sealed class BundleRuntime
     {
         private enum State
@@ -113,6 +135,8 @@ namespace Game.AssetSystem.Integration
             public IBundlePayload Payload;
             public int UserRefs;
             public readonly List<Waiter> Waiters = new List<Waiter>();
+            public readonly List<BundleLease> DependencyLeases =
+                new List<BundleLease>();
             public string LastError;
         }
 
@@ -131,6 +155,22 @@ namespace Game.AssetSystem.Integration
             new Dictionary<BundleId, Entry>();
 
         public int LoadedPayloadCount { get; private set; }
+
+        /// <summary>Sum of every bundle's user reference count.</summary>
+        public int TotalUserRefs
+        {
+            get
+            {
+                var count = 0;
+
+                foreach (var entry in _entries.Values)
+                {
+                    count += entry.UserRefs;
+                }
+
+                return count;
+            }
+        }
 
         public int IdleBundleCount
         {
@@ -246,15 +286,44 @@ namespace Game.AssetSystem.Integration
         private async void BeginLoad(Entry entry)
         {
             IBundlePayload payload = null;
+            var dependencyLeases = new List<BundleLease>();
 
             try
             {
+                // Dependencies first: a bundle payload resolves asset references
+                // into its dependencies at load time, so they must already be
+                // loaded and stay leased until this payload is released.
+                var dependencies = entry.Bundle.DirectDependencies;
+
+                for (var i = 0; i < dependencies.Count; i++)
+                {
+                    var dependency = await AcquireAsync(
+                        dependencies[i],
+                        "Dependency:" + entry.Bundle.BundleGroupName);
+
+                    if (!dependency.Success)
+                    {
+                        ReleaseLeases(dependencyLeases);
+
+                        CompleteLoadFailure(
+                            entry,
+                            "Dependency " + dependencies[i] + " failed: " +
+                            dependency.Error);
+
+                        return;
+                    }
+
+                    dependencyLeases.Add(dependency.Lease);
+                }
+
                 payload = await _factory.LoadAsync(
                     entry.Bundle,
                     CancellationToken.None);
             }
             catch (Exception exception)
             {
+                ReleaseLeases(dependencyLeases);
+
                 CompleteLoadFailure(
                     entry,
                     exception.GetType().Name + ": " + exception.Message);
@@ -263,19 +332,42 @@ namespace Game.AssetSystem.Integration
 
             if (payload == null)
             {
+                ReleaseLeases(dependencyLeases);
                 CompleteLoadFailure(entry, "Payload is null.");
                 return;
             }
 
-            CompleteLoadSuccess(entry, payload);
+            CompleteLoadSuccess(entry, payload, dependencyLeases);
         }
 
-        private void CompleteLoadSuccess(Entry entry, IBundlePayload payload)
+        private static void ReleaseLeases(List<BundleLease> leases)
+        {
+            for (var i = 0; i < leases.Count; i++)
+            {
+                try
+                {
+                    leases[i].Dispose();
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogException(exception);
+                }
+            }
+
+            leases.Clear();
+        }
+
+        private void CompleteLoadSuccess(
+            Entry entry,
+            IBundlePayload payload,
+            List<BundleLease> dependencyLeases)
         {
             MainThreadPump.EnsureMainThread(
                 nameof(CompleteLoadSuccess));
 
             entry.Payload = payload;
+            entry.DependencyLeases.AddRange(dependencyLeases);
+            dependencyLeases.Clear();
             LoadedPayloadCount++;
 
             var waiters = entry.Waiters.ToArray();
@@ -406,7 +498,65 @@ namespace Game.AssetSystem.Integration
                 Debug.LogException(exception);
             }
 
+            // Payload first, dependency leases second: the payload holds
+            // references into its dependencies, so releasing a dependency lease
+            // first could unload a bundle the payload still points at.
+            ReleaseLeases(entry.DependencyLeases);
+
             return true;
+        }
+
+        /// <summary>
+        /// Point-in-time view of every bundle declared by the active content,
+        /// including the ones never touched yet. Used by the diagnostics UI.
+        /// </summary>
+        public List<ContentBundleSnapshotEntry> SnapshotBundles()
+        {
+            MainThreadPump.EnsureMainThread(nameof(SnapshotBundles));
+
+            var list = new List<ContentBundleSnapshotEntry>();
+
+            foreach (var bundle in _context.AllBundles)
+            {
+                var entry = new ContentBundleSnapshotEntry
+                {
+                    Id = bundle.Id,
+                    GroupName = bundle.BundleGroupName,
+                    FileName = bundle.FileName,
+                    State = ContentBundleState.NotLoaded
+                };
+
+                if (_entries.TryGetValue(bundle.Id, out var runtimeEntry))
+                {
+                    entry.State = ToSnapshotState(runtimeEntry.State);
+                    entry.UserRefs = runtimeEntry.UserRefs;
+                    entry.WaitingCount = runtimeEntry.Waiters.Count;
+                    entry.HasPayload = runtimeEntry.Payload != null;
+                    entry.LastError = runtimeEntry.LastError;
+                }
+
+                list.Add(entry);
+            }
+
+            list.Sort((a, b) => string.CompareOrdinal(a.GroupName, b.GroupName));
+            return list;
+        }
+
+        private static ContentBundleState ToSnapshotState(State state)
+        {
+            switch (state)
+            {
+                case State.Loading:
+                    return ContentBundleState.Loading;
+                case State.Ready:
+                    return ContentBundleState.Ready;
+                case State.Idle:
+                    return ContentBundleState.Idle;
+                case State.Failed:
+                    return ContentBundleState.Failed;
+                default:
+                    return ContentBundleState.NotLoaded;
+            }
         }
 
         public List<BundleId> SnapshotIdleBundleIds()

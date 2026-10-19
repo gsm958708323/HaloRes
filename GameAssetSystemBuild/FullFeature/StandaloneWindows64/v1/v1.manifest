@@ -1,0 +1,17 @@
+ManifestFileVersion: 0
+UnityVersion: 6000.0.32f1
+CRC: 2345684434
+HashAppended: 0
+AssetBundleManifest:
+  AssetBundleInfos:
+    Info_0:
+      Name: battle_fx
+      Dependencies:
+        Dependency_0: shared
+    Info_1:
+      Name: shared
+      Dependencies: {}
+    Info_2:
+      Name: ui_shop
+      Dependencies:
+        Dependency_0: shared
