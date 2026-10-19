@@ -3,25 +3,25 @@
     "contentVersion": "fullchain-v1",
     "targetPlatformKey": "StandaloneWindows64",
     "buildTarget": "StandaloneWindows64",
-    "generatedAtUtc": "2026-10-18T13:23:20.8255556Z",
+    "generatedAtUtc": "2026-10-19T14:06:17.8289125Z",
     "bundles": [
         {
             "bundleGroupName": "battle_audio",
             "bundleFileName": "battle_audio",
-            "sizeBytes": 1917,
-            "sha256Hex": "2a71027e9a37211da78c2c3b7f60cdd2d7f8b1a8e1df3e8357e09d003ef02a63"
+            "sizeBytes": 1916,
+            "sha256Hex": "9a05e6b7e7b6066088db43796a40649154157e495cc18b4eef8050f5ad8c3369"
         },
         {
             "bundleGroupName": "battle_fx",
             "bundleFileName": "battle_fx",
-            "sizeBytes": 2054,
-            "sha256Hex": "402d37d15b9b43d39bfdf04877d1d57ab4114cb31167d25591c22149b72c1a45"
+            "sizeBytes": 2050,
+            "sha256Hex": "83da5d6d2d8acf19b16e2f2b29123e7cdcda4f49f0bea02eb2e1282d0484227f"
         },
         {
             "bundleGroupName": "ui_shop",
             "bundleFileName": "ui_shop",
-            "sizeBytes": 2056,
-            "sha256Hex": "acd6430b21cc4ab1433e551f451cbe385486cb808a5ec59e83f4c2105ab176f6"
+            "sizeBytes": 2053,
+            "sha256Hex": "a5dd0a76876d232d0feff676f4b91d9b77af09486c8e33e04691056565615ded"
         }
     ],
     "assets": [

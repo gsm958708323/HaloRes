@@ -10,60 +10,61 @@
 | 项目 | 数量 | 说明 |
 |---|---|---|
 | 从文档提取的代码段 | 105 | 88 个唯一路径 + 17 个跨课程重复版本 |
-| 写入工程的课程文件 | 104 | 跳过 `Packages/manifest.json`、`ProjectSettings/ProjectVersion.txt`（工程已有，且版本为 Unity 6，不能覆盖） |
-| CI 脚本 | 1 | `ci/build-and-publish.sh` |
-| 汇编定义 asmdef | 7 | 1 运行时 + 4 编辑器 + 2 测试 |
-| 新增全链路代码 | 3 | 布局契约、运行器、内容构建器 |
-| 新增交互演示代码 | 2 | 控制器（状态机 + UI + 3D 视口）、uGUI 构建工具 |
+| 整理后的框架文件 | 71 个 `.cs` / 17,460 行 | 原 15 个课程目录共 118 个 `.cs` / 29,389 行 |
+| 汇编定义 asmdef | 4 | 1 运行时 + 1 编辑器 + 2 测试 |
+| 全链路代码 | 3 | 布局契约、运行器、内容构建器 |
+| 交互演示代码 | 2 | 控制器（状态机 + UI + 3D 视口）、uGUI 构建工具 |
 | 测试用例 | 21 | EditMode 6、PlayMode 15 |
 
-编译结果：**0 error**。
+编译结果：**0 error**；测试结果：**21/21 通过**。
 
-## 2. 目录结构
+## 2. 目录结构（整理后：只剩一份最终版）
 
 ```
-Assets/Game/Lessons/
-├─ Game.AssetSystem.Lessons.asmdef      # 运行时程序集（覆盖全部课程代码）
-├─ LessonBootGate.cs                    # 演示统一启动开关
-├─ Diagnostics/LessonHud.cs             # 屏上 HUD（课程日志镜像，F1/F2）
-├─ L31/  (3.1 主线程亲和性)              3 个文件
-├─ L32/  (3.2 可取消加载任务)            7 个文件
-├─ L33/  (3.3 共享加载注册表)            8 个文件
-├─ L34/  (3.4 文件事务与 Hash)           4 个文件
-├─ L35/  (3.5 Patch staging)            9 个文件
-├─ L36/  (3.6 调度预算)                  7 个文件
-├─ L41/  (4.1 构建期扫描)   Editor/       5 个文件 + asmdef
-├─ L42/  (4.2 依赖图与 Manifest) Editor/  10 个文件 + asmdef
-├─ L43/  (4.3 AssetBundle 构建)  Editor/   8 个文件 + asmdef
-├─ L44/  (4.4 BundleRuntime)            5 个文件
-├─ L45/  (4.5 AssetCache/Scope)         5 个文件
-├─ L46/  (4.6 内存策略与诊断)            7 个文件
-├─ L47/  (4.7 Patch 激活)               5 个文件
-├─ L51/  (5.1 系统集成 场景 S)          13 个文件
-├─ L52/  (5.2 发布前验证)                7 个文件
-├─ FullChain/                           全链路 demo（跨课程串联）
-│  ├─ Demo/FullChainLayout.cs           产物路径与平台键契约
-│  ├─ Demo/FullChainRunner.cs           端到端运行器 + 报告
-│  └─ Editor/FullChainContentBuilder.cs v1/v2 真实 Bundle 构建（+ asmdef）
-├─ DemoApp/                             交互演示（运行时构建，无预制体）
-│  ├─ AssetDemoController.cs            状态机 + 全部交互 + 3D 视口
-│  └─ AssetDemoUiKit.cs                 uGUI 构建工具（圆角/字体/按钮）
-└─ Tests/
-   ├─ Editor/    LessonBuildPipelineTests.cs / FullChainContentTests.cs
-   └─ PlayMode/  RuntimeScenarioTests.cs / PersistenceScenarioTests.cs
-                 / ReleaseGateTests.cs / FullChainScenarioTests.cs
+Assets/Game/AssetSystem/
+├─ Runtime/                             asmdef: Game.AssetSystem（运行时）
+│  ├─ Core/                             MainThreadPump（唯一主线程调度器）/ MainThreadAssetTask
+│  ├─ Loading/                          可取消加载任务 + 共享加载注册表（3.2/3.3 最终版）
+│  ├─ Scheduling/                       优先级 + 双预算调度器（3.6）
+│  ├─ Storage/                          文件事务 / Hash 校验 / active 指针（3.4/3.5 最终版）
+│  ├─ Patch/                            下载、staging、应用（IPatchTransport 抽象）
+│  ├─ Bundles/                          BundleRuntime：引用计数 + 依赖租约 + 快照
+│  ├─ Assets/                           AssetCache：Handle / Scope / 加载任务
+│  ├─ Memory/                           AssetMemoryPolicy：预算、宽限期、回收
+│  ├─ Diagnostics/                      运行时快照
+│  ├─ Integration/                      5.1 集成层：ActiveContentContext / ContentBundleRuntime
+│  │  └─ Patch/                         Patch 激活 + 下载编排 + 模拟 CDN
+│  ├─ Release/                          5.2 发布加固：加载门禁 / 安全点 / 版本清理 / 真实载荷
+│  └─ Demos/                            Interactive / FullChain 场景入口 + AssetSystemHud
+├─ Editor/                              asmdef: Game.AssetSystem.Editor
+│  ├─ Scanning/                         扫描 + 分组规则 + Key 校验
+│  ├─ Manifest/                         依赖图 + Manifest 构建
+│  ├─ Building/                         AssetBundle 构建 / 校验 / 平台变体 / 全链路内容构建
+│  └─ SampleContent/                    测试与 demo 用的示例资源生成器
+├─ Tests/
+│  ├─ Editor/                           6 个 EditMode 用例
+│  └─ PlayMode/                         15 个 PlayMode 用例 + Support/ 测试替身
+└─ Lesson4xSample/                      测试生成的示例资源（非代码）
 ```
 
-## 3. 为什么必须做隔离
+命名空间不再带课程后缀：`Game.AssetSystem.Loading`、`Game.AssetSystem.Bundles`、
+`Game.AssetSystem.Integration`、`Game.AssetSystem.Release`、`Game.AssetSystem.Editor.Building` ……
 
-15 个课程快照**不是增量补丁，而是各自完整的工程**，同名同命名空间的类型大量重复：
+## 3. 从 15 份课程快照合并成一份
 
-- `Game.AssetSystem.Bundles.BundleRuntime`：4.4 / 4.5 / 4.6 各一份
-- `Game.AssetSystem.Assets.AssetCache`：4.5 / 4.6 各一份
-- `Game.AssetSystem.Infrastructure.UnityMainThreadPump`：3.6 / 4.4 / 4.5 / 4.6 / 4.7 共 5 份
-- `Game.AssetSystem.Editor.Scanning.AssetScanner`：4.1 / 4.2 各一份
+原工程把文档的 15 个课程快照各自完整落地，同名类型大量重复
+（`BundleRuntime` ×3、`AssetCache` ×3、`UnityMainThreadPump` ×5、`AssetScanner` ×2），
+只靠 `.L31` / `.L46` 这样的命名空间后缀隔离。整理后：
 
-处理方式：**按课程给命名空间加后缀**（`Game.AssetSystem.Loading` → `Game.AssetSystem.Loading.L32`），跨课程依赖自动解析到"文档顺序上最近的前置课程"（4.3→4.2、4.7→4.6、5.2→5.1）。源码其余部分保持原样。
+| 处理 | 内容 |
+|---|---|
+| 每层只留最新实现 | Loading 取 3.3（`AcquireWaiter` 已被 `TryAcquireWaiter` 取代）、Storage 取 3.5、Scanning 取 4.2、Bundles/Assets 取 4.6（4.4/4.5 被 4.6 覆盖） |
+| 主线程调度器合并 | 3 个 `UnityMainThreadRunner` + 5 个 `UnityMainThreadPump` + `IntegrationMainThreadPump` → 1 个 `Core/MainThreadPump`（优先级队列 + 每帧预算 + `EnsureMainThread`） |
+| 课程 demo 删除 | 12 个逐课 bootstrap、3 个课程编辑器窗口、L51/L52 场景 demo 全部移除 |
+| 类型名去课程号 | `Lesson43AssetBundleBuilder` → `AssetBundleBuilder`、`LessonHud` → `AssetSystemHud`；`LessonBootGate` 直接删除，改由场景入口组件启动 |
+| 测试保留并改到新 API | 21 个用例全保留；3.2 的两个用例改到 3.3 的 `TryAcquireWaiter`；测试替身集中到 `Tests/PlayMode/Support` |
+
+被删除的 4.4/4.5/4.7 与 5.1 演示代码，其行为语义仍由全链路用例与 Release 用例覆盖（见第 8 节）。
 
 ## 4. 文档代码本身的缺陷（已修）
 
@@ -121,7 +122,7 @@ Assets/Game/Lessons/
 
 ## 6. 交互演示（可点击）
 
-`Assets/Game/Lessons/DemoApp/` 提供一套**零预制体、全运行时构建**的交互界面：Canvas、字体、圆角贴图、按钮、RenderTexture 视口都在代码里生成，因此在任何场景按 Play 都能跑。
+`Assets/Game/AssetSystem/Runtime/Demos/Interactive/` 提供一套**零预制体、全运行时构建**的交互界面：Canvas、字体、圆角贴图、按钮、RenderTexture 视口都在代码里生成，因此在任何场景按 Play 都能跑。
 
 ### 6.1 界面分区
 
@@ -151,13 +152,73 @@ Assets/Game/Lessons/
 | `Captures/demo-3-reclaimed.png` | 回收内存 | Asset 5 / Bundle 3 回收，全部 NotLoaded，方块消失 |
 | `Captures/demo-4-v2.png` | 激活 v2 后再加载 | 版本徽章 `fullchain-v2`，日志出现 `→ ShopRoot_v2`，激活次数 2 |
 
-### 6.4 进入方式
+### 6.4 进入方式（两个 demo 怎么跑）
 
-- 直接按 **Play**（默认就是交互演示；12 个课程日志演示会自动静默）；
-- 想看原来的课程日志演示：`Tools/Game Asset System/Toggle Lesson Demo Mode`；
-- 还没构建资源时：`Tools/Game Asset System/Build Content And Play Demo`（构建 v1/v2 后自动进 Play）。
+整理后只剩两个 demo，**各有一个专属场景，进场景按 Play 就跑，不再用菜单切模式**。
+两个场景都需要先有 v1/v2 真实 Bundle 产物。
 
+| 场景 | 入口 | 跑什么 |
+|---|---|---|
+| `Assets/Scenes/Demo_Interactive.unity` | `[DemoBootstrap] Interactive` → `InteractiveDemoBootstrap` | 可点击资产流：加载 / 共享去重 / 释放 / 回收 / v1↔v2 切换 + 3D 视口 |
+| `Assets/Scenes/Demo_FullChain.unity` | `[DemoBootstrap] FullChain` → `FullChainDemoBootstrap` | 端到端链路：Console 输出 `[FullChain][A]…[G]` + summary，HUD 同步镜像 |
 
+用法：
+
+1. 首次或产物缺失时，先执行一次 `Tools/Game Asset System/Build Full-Chain Demo Content`；
+2. 双击 `Assets/Scenes/Demo_Interactive.unity` → 按 **Play** → 出现 `[AssetDemo]`；
+3. 双击 `Assets/Scenes/Demo_FullChain.unity` → 按 **Play** → 出现 `[FullChainScenarioDemo]` + `[AssetSystemHud]`；
+4. 其他场景（如 `SampleScene`）按 Play 不会再启动任何 demo。
+
+两个场景都已加入 Build Settings，可直接在 Build Profile 里单独构建。
+
+- 一键版：`Tools/Game Asset System/Build Content And Play Demo`（构建后自动进 Play，进的是当前打开的场景）。
+- 清理产物：`Tools/Game Asset System/Clean Full-Chain Demo Content`。
+- HUD 快捷键：`F1` 显示/隐藏、`F2` 清空。
+
+### 6.5 课程 demo 去哪了（课程 → 用例对照）
+
+原工程每节课都自带一个控制台 demo（`Lessons/L31..L52` 下的 `*LessonBootstrap`，4.1/4.2/4.3 是编辑器窗口），
+整理时随课程目录一并删除。**它们没有消失，而是变成了断言化用例**：每条用例跑的就是那节课的场景，
+失败会直接指出断言，比翻日志更可靠。
+
+| 课程 | 原 demo | 现在的等价入口（测试用例） |
+|---|---|---|
+| 3.1 主线程亲和 | `MainThreadRunnerLessonBootstrap` | `RuntimeScenarioTests.L31_WorkerCompletionIsDeliveredOnMainThread` |
+| 3.2 可取消加载 | `CancellationLessonBootstrap` | `RuntimeScenarioTests.L32_OneWaiterCanceled_OtherWaiterStillSucceeds`、`L32_AllWaitersCanceled_LateSuccessIsAbandoned` |
+| 3.3 共享加载 | `SharedLoadRegistryLessonBootstrap` | `RuntimeScenarioTests.L33_TwoWaitersReuseOneOperation`、`L33_LastWaiterCanceled_NextLoadCreatesNewOperation` |
+| 3.4 文件事务 | `FileTransactionLessonBootstrap` | `PersistenceScenarioTests.L34_HashGuardBlocksBadCommitAndBadActivation` |
+| 3.5 补丁下载 | `PatchDownloadLessonBootstrap` | `PersistenceScenarioTests.L35_DownloadInterruptedThenResumes`、`BuildPipelineTests.L35_StorageRejectsUnsafeFileNames` |
+| 3.6 调度预算 | `SchedulerLessonBootstrap` | `RuntimeScenarioTests.L36_HighPriorityStartsFirst_WithinBudget`、`L36_ScopeDisposeCancelsQueuedLoads` |
+| 4.1 构建期扫描 | `AssetScanLessonWindow`（编辑器窗口） | `BuildPipelineTests.L41_ScanReportsUnmatchedInvalidAndDuplicateKeys`、`L41_AssetKeyFormatRejectsInvalidKeys` |
+| 4.2 依赖图 | `DependencyGraphLessonWindow`（编辑器窗口） | `BuildPipelineTests.L42_CleanGraphBuildsManifest` |
+| 4.3 Bundle 构建 | `Lesson43BuildWindow`（编辑器窗口） | `BuildPipelineTests.L43_BuildsRealBundlesAndRejectsWrongPlatform`；产物由 `FullChainContentTests.FullChain_BuildsV1AndV2Bundles` 生成 |
+| 4.4 BundleRuntime | `BundleRuntimeLessonBootstrap` | `RuntimeScenarioTests.L44_SharedBundleRefCountAndDependencyLeases`、`L44_CancelOneWaiter_OtherGetsLease`、`L44_MissingDependencyFailsWithoutLease` |
+| 4.5 资源缓存 | `AssetCacheLessonBootstrap` | `FullChainScenarioTests.FullChain_RealBundlesAcrossVersionSwitch`（共享加载 / Idle / 释放段） |
+| 4.6 内存策略 | `AssetMemoryLessonBootstrap` | 同上（`reclaimedAssets` / `reclaimedBundles` / Handle 归零断言） |
+| 4.7 补丁激活 | `PatchActivationLessonBootstrap` | 同上（`RejectedActiveHandles` / `RejectedUnsafePoint` / 激活后重建段） |
+| 5.1 场景 S | `ScenarioSDemo` | `FullChainScenarioTests.FullChain_RealBundlesAcrossVersionSwitch` |
+| 5.2 发布验证 | `ReleaseValidationDemo` | `ReleaseGateTests.L52_AssetLoadGateRespectsStartAndConcurrencyBudget`、`L52_InstalledVersionCleanerRetainsActiveAndNewest` |
+
+**怎么跑这些"按课"的场景**
+
+- 图形界面：`Window > General > Test Runner` → 选 `EditMode` / `PlayMode` → 双击单条用例（或选中后 Run Selected）。全部 21 条约 20 秒。
+- 命令行（先关掉编辑器，避免工程被锁）：
+
+```bash
+"D:/Work/UnityInstall/6000.0.32f1/Editor/Unity.exe" -batchmode -projectPath "D:/Work/Blog/HaloRes2" \
+  -runTests -testPlatform PlayMode -testFilter "L36_" -testResults "Logs/L36.xml" -quit
+```
+
+  `-testFilter` 支持 `L31_`、`L44_`、`FullChain_` 等前缀；4.1/4.2/4.3/3.5 的用例在 EditMode，需把 `-testPlatform` 换成 `EditMode`。
+- 想看该层的 Console 日志：单条跑用例即可，输出仍是 `[SharedLoad]` / `[BundleRuntime]` / `[AssetCache]` / `[FullChain]` 等前缀。
+
+**需要恢复某节课的原始控制台 demo**：文件仍在 git 提交 `47e44d0`，例如
+
+```bash
+git show 47e44d0:Assets/Game/Lessons/L36/Demo/SchedulerLessonBootstrap.cs
+```
+
+取回后必须改命名空间（`.L36` 等后缀已移除）并挂到场景入口组件上，否则不会启动。
 
 ## 7. 测试清单与结果
 
@@ -194,11 +255,13 @@ Assets/Game/Lessons/
 
 ### 7.3 演示冒烟
 
-12 个课程演示在 Play 模式下同时启动并输出预期日志。控制台仅 1 条 `LogError`，是 4.4「缺失依赖」失败路径的设计内输出。
+整理后只剩两个演示（交互 DemoApp / 全链路 FullChain），各自绑定一个场景，进入哪个场景就跑哪个。PlayMode 用例在 `InitTestScene` 里运行，不会加载 demo 场景，控制台不产生无关 `LogError`。
 
 ## 8. 覆盖矩阵与剩余缺口
 
 ### 8.1 已自动化
+
+逐课"原 demo → 现在的用例"精确对照见 **6.5**，这里只按能力维度汇总。
 
 | 课程 | 覆盖方式 |
 |---|---|
@@ -229,33 +292,33 @@ Assets/Game/Lessons/
 这套框架是**纯逻辑库**，没有任何可渲染内容：
 
 - 场景只有 `Assets/Scenes/SampleScene.unity`（Main Camera / Directional Light / Global Volume 三个默认物体）；
-- 12 个课程演示在进入 Play 时由 `[RuntimeInitializeOnLoadMethod]` 创建 `[...]` 物体，挂在 DontDestroyOnLoad 分区，场景视图里看不到；
+- 演示在进入 Play 时由 `[RuntimeInitializeOnLoadMethod]` 创建 `[...]` 物体，挂在 DontDestroyOnLoad 分区，场景视图里看不到；
 - 所有证据都是 Console 日志。
 
 因此「打开工程 → 空场景」是正常现象，不是资源丢失。
 
 ### 9.2 屏上 HUD
 
-`Diagnostics/LessonHud.cs` 在 Play 时自动创建，左上角实时镜像课程日志：
+`Runtime/Demos/Diagnostics/AssetSystemHud.cs` 在 Play 时自动创建，左上角实时镜像框架日志：
 
 - `F1` 隐藏/显示，`F2` 清空；
 - 面板顶部显示当前场景、AutoBoot 状态、FPS；
 - 只抓取 `[Lesson*]` / `[FullChain*]` / `[Scenario*]` / `[Registry*]` 前缀和 Error/Warning，避免刷屏；
-- HUD 不受 `LessonBootGate` 控制（关掉演示也能看），但在 PlayMode 测试场景里同样静默。
+- HUD 与演示解耦：任何场景进 Play 都会创建，交互演示会把它隐藏（界面自带日志面板）。
 
 ### 9.3 命令
 
 - **跑测试**：`Window > General > Test Runner` → EditMode / PlayMode → Run All。
 - **看交互演示**：直接按 **Play**（默认模式）。
-- **看课程日志演示**：`Tools/Game Asset System/Toggle Lesson Demo Mode` 切到日志模式，再按 Play。
-- **测试与演示互不干扰**：`LessonBootGate` 检测到 `InitTestScene` 时自动让所有演示静默，
+- **看全链路日志演示**：打开 `Assets/Scenes/Demo_FullChain.unity`，按 Play。
+- **测试与演示互不干扰**：测试不加载 demo 场景，演示也不再自动启动，
   所以跑测试不会被演示日志污染（15 个 PlayMode 用例已验证）。
-- **构建期课程**：`Tools/Game Asset System/Lesson 4.1 / 4.2 / 4.3` 三个窗口。
+- **构建期工具**：`Tools/Game Asset System/Build Full-Chain Demo Content`（4.1→4.2→4.3 全流程）。
 - **一键构建 + 进演示**：`Tools/Game Asset System/Build Content And Play Demo`。
 
 ## 10. 结论
 
-- 文档全部代码已进入工程，编译零错误，15 个快照共存且互不冲突；
+- 15 个课程快照已合并为一份最终版框架（71 个文件 / 17,460 行），编译零错误；
 - 新增的全链路 demo 用**真实 AssetBundle 产物**跑通“构建 → 激活 → 加载 → 回收”，补上了文档里缺失的那一段；
 - 新增可点击的交互演示：真实 Bundle + 引用计数 + 版本切换 + 内存回收全部可视化，零预制体、任何场景可跑；
 - 21 个用例全部通过，覆盖并发/取消/引用计数/文件事务/断点续传/调度预算/构建期校验/版本切换；
