@@ -55,6 +55,15 @@ namespace Game.AssetSystem.Core
             new ConcurrentQueue<WorkItem>()
         };
 
+        /// <summary>
+        /// Actions parked for the next frame. Kept separate from the priority
+        /// queues so "reschedule me next frame" cannot be drained again in the
+        /// frame that asked for it — a self-rescheduling poll in a queue would
+        /// otherwise spin until the action cap ran out.
+        /// </summary>
+        private readonly ConcurrentQueue<Action> _nextFrame =
+            new ConcurrentQueue<Action>();
+
         private readonly PumpBudget _budget = new PumpBudget();
 
         private long _sequence;
@@ -182,6 +191,17 @@ namespace Game.AssetSystem.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void AutoInitialize()
         {
+            EnsureExists();
+        }
+
+        /// <summary>
+        /// Creates the pump when it is not alive yet. Auto-initialisation
+        /// already runs before the first scene, so this is the safety net for
+        /// callers that touch the framework from <c>Awake</c> of a component
+        /// created earlier than that (or in an isolated test scene).
+        /// </summary>
+        public static void EnsureExists()
+        {
             if (EnsureLiveInstance())
             {
                 return;
@@ -272,6 +292,32 @@ namespace Game.AssetSystem.Core
         }
 
         /// <summary>
+        /// Runs <paramref name="action"/> on the next frame, before that frame's
+        /// budget is drained.
+        ///
+        /// This is what per-frame polling of a Unity async operation needs: the
+        /// operation only makes progress between frames, so re-posting into a
+        /// priority queue would let the same frame drain the action again and
+        /// again until the action cap ran out.
+        /// </summary>
+        public static void PostNextFrame(Action action)
+        {
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
+
+            if (_instance == null)
+            {
+                throw new InvalidOperationException(
+                    "MainThreadPump is not initialized. " +
+                    "It must be initialized before PostNextFrame is used.");
+            }
+
+            _instance._nextFrame.Enqueue(action);
+        }
+
+        /// <summary>
         /// Throws when the caller is not on the Unity main thread. Used by the
         /// layers that must never touch engine objects off-thread.
         /// </summary>
@@ -297,7 +343,16 @@ namespace Game.AssetSystem.Core
 
         private void Update()
         {
+            PromoteNextFrameActions();
             DrainFrame();
+        }
+
+        private void PromoteNextFrameActions()
+        {
+            while (_nextFrame.TryDequeue(out var action))
+            {
+                Enqueue(action, (int)PumpPriority.Normal);
+            }
         }
 
         public void DrainFrame()

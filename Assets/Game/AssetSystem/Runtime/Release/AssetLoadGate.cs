@@ -51,7 +51,8 @@ namespace Game.AssetSystem.Release
                 throw new ArgumentNullException(nameof(work));
             }
 
-            var tcs = new TaskCompletionSource<IBundlePayload>();
+            var tcs = new TaskCompletionSource<IBundlePayload>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
 
             _queue.Enqueue(new Pending
             {

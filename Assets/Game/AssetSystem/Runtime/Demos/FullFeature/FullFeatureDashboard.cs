@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
-using Game.AssetSystem.Demos.Interactive;
+using Game.AssetSystem.Demos.Shared;
 using Game.AssetSystem.Assets;
 using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Hosting;
 using Game.AssetSystem.Patch;
 using Game.AssetSystem.Memory;
 using Game.AssetSystem.Release;
@@ -56,7 +57,7 @@ namespace Game.AssetSystem.Demos.FullFeature
         private float _nextRefresh;
 
         private CancellationTokenSource _downloadCts;
-        private FullFeatureDownloadReport _lastDownload;
+        private PatchDownloadReport _lastDownload;
 
         private string _lastLabel = "-";
         private string _lastSharedVersion = "-";
@@ -104,15 +105,11 @@ namespace Game.AssetSystem.Demos.FullFeature
 
         private async void Start()
         {
-            // The dashboard replaces the plain log HUD, which would otherwise
-            // cover the top-left quarter of the screen.
-            var hud = FindFirstObjectByType<
-                Game.AssetSystem.Demos.Diagnostics.AssetSystemHud>();
-
-            if (hud != null)
-            {
-                hud.gameObject.SetActive(false);
-            }
+            // The HUD is created only here, and only for this scene: the
+            // dashboard owns the log panel, so the overlay starts hidden and
+            // F1 brings it back.
+            var hud = Game.AssetSystem.Demos.Diagnostics.AssetSystemHud.EnsureHud();
+            hud.SetVisible(false);
 
             _session = new FullFeatureSession();
             _session.DownloadProgress += OnDownloadProgress;

@@ -1,13 +1,15 @@
-using System;
 using System.IO;
+using Game.AssetSystem.Hosting;
 using UnityEngine;
 
 namespace Game.AssetSystem.FullChain
 {
     /// <summary>
-    /// Shared location contract for the full-chain demo.
-    /// The Editor builder writes real AssetBundles here, the runtime demo and
-    /// the PlayMode test read them back. Nothing is hard-coded per machine.
+    /// Shared location contract for the full-chain content.
+    /// The Editor builder writes real AssetBundles here, the PlayMode test
+    /// reads them back. Nothing is hard-coded per machine.
+    ///
+    /// This is a build-output contract, not a demo contract: no scene uses it.
     /// </summary>
     public static class FullChainLayout
     {
@@ -39,27 +41,7 @@ namespace Game.AssetSystem.FullChain
 
         public static string PlatformKey
         {
-            get
-            {
-                switch (Application.platform)
-                {
-                    case RuntimePlatform.WindowsEditor:
-                    case RuntimePlatform.WindowsPlayer:
-                        return "StandaloneWindows64";
-                    case RuntimePlatform.OSXEditor:
-                    case RuntimePlatform.OSXPlayer:
-                        return "StandaloneOSX";
-                    case RuntimePlatform.LinuxEditor:
-                    case RuntimePlatform.LinuxPlayer:
-                        return "StandaloneLinux64";
-                    case RuntimePlatform.Android:
-                        return "Android";
-                    case RuntimePlatform.IPhonePlayer:
-                        return "iOS";
-                    default:
-                        return Application.platform.ToString();
-                }
-            }
+            get { return PlatformKeys.Current; }
         }
 
         public static string ContentDir(string contentVersion)

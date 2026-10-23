@@ -23,4 +23,4 @@ SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/Game/AssetSystem/FullFeatureSample/v3/Fx/Hit.asset
 Dependencies:
-- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-fe1f0ce7c28047b1bb0d55408b8ad0d0/v3/shared
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-aa0936e39b2d44c89df56c978cbab73a/v3/shared

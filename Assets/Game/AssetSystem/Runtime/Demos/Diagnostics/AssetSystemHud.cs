@@ -9,6 +9,11 @@ namespace Game.AssetSystem.Demos.Diagnostics
     /// The core layers are pure logic: their only output is the console. This
     /// HUD mirrors the recent framework logs on screen so a play-mode run is
     /// not a black window. F1 toggles it, F2 clears the buffer.
+    ///
+    /// It no longer boots itself. A global <c>AfterSceneLoad</c> hook meant
+    /// every scene — including the lesson console, which only writes to the
+    /// console on purpose — got a panel pasted over it. Only the full-feature
+    /// dashboard creates it now, via <see cref="EnsureHud"/>.
     /// </summary>
     public sealed class AssetSystemHud : MonoBehaviour
     {
@@ -36,18 +41,29 @@ namespace Game.AssetSystem.Demos.Diagnostics
             _instance = null;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AutoBoot()
+        /// <summary>
+        /// Creates the HUD when it is not alive yet and returns it. Called by
+        /// <see cref="Game.AssetSystem.Demos.FullFeature.FullFeatureDashboard"/>;
+        /// nothing else should need it.
+        /// </summary>
+        public static AssetSystemHud EnsureHud()
         {
-            // Diagnostics only: stays available even when every demo is off.
             if (EnsureLiveInstance())
             {
-                return;
+                return _instance;
             }
 
             var go = new GameObject("[AssetSystemHud]");
             DontDestroyOnLoad(go);
             _instance = go.AddComponent<AssetSystemHud>();
+
+            return _instance;
+        }
+
+        /// <summary>Shows or hides the panel without destroying the buffer.</summary>
+        public void SetVisible(bool visible)
+        {
+            _visible = visible;
         }
 
         /// <summary>
@@ -123,6 +139,8 @@ namespace Game.AssetSystem.Demos.Diagnostics
             }
 
             if (condition.IndexOf("[FullChain", System.StringComparison.Ordinal) < 0 &&
+                condition.IndexOf("[FullFeature", System.StringComparison.Ordinal) < 0 &&
+                condition.IndexOf("[AssetSystem", System.StringComparison.Ordinal) < 0 &&
                 condition.IndexOf("[Scenario", System.StringComparison.Ordinal) < 0 &&
                 condition.IndexOf("[Registry", System.StringComparison.Ordinal) < 0 &&
                 condition.IndexOf("[BundleRuntime", System.StringComparison.Ordinal) < 0 &&

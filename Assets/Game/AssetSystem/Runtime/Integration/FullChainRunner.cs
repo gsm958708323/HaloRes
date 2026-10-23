@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Game.AssetSystem.FullChain;
 using Game.AssetSystem.Assets;
 using Game.AssetSystem.Bundles;
 using Game.AssetSystem.Content;
@@ -70,7 +69,11 @@ namespace Game.AssetSystem.FullChain
     /// <summary>
     /// End-to-end chain: 4.3 build output -> real AssetBundle payload (5.2)
     /// -> 5.1 version context / BundleRuntime / AssetCache / memory reclaim.
-    /// The demo MonoBehaviour and the PlayMode test both call RunAsync().
+    ///
+    /// Lives in the runtime assembly (not in Demos) because the PlayMode test
+    /// and the Editor builder both depend on it, and neither should have to
+    /// reference demo code. There is no full-chain scene any more: the runner
+    /// is exercised by <c>FullChainScenarioTests</c>.
     /// </summary>
     public static class FullChainRunner
     {
@@ -352,86 +355,16 @@ namespace Game.AssetSystem.FullChain
         // ------------------------------------------------------------------
         // manifest: 4.3 build output -> 5.1 patch manifest
         // ------------------------------------------------------------------
+        /// <summary>
+        /// Reads the build pipeline manifest at
+        /// <paramref name="contentDirectory"/>. Kept as a facade over
+        /// <see cref="BuildManifestReader"/> so callers that only know the
+        /// folder keep working.
+        /// </summary>
         public static PatchManifest LoadManifest(string contentDirectory)
         {
-            var path = Path.Combine(contentDirectory, FullChainLayout.ManifestFileName);
-            var json = File.ReadAllText(path);
-            var dto = JsonUtility.FromJson<BuildManifestDto>(json);
-
-            if (dto == null)
-            {
-                throw new InvalidOperationException("Failed to parse manifest: " + path);
-            }
-
-            var manifest = new PatchManifest
-            {
-                SchemaVersion = dto.schemaVersion,
-                ContentVersion = dto.contentVersion,
-                PlatformKey = dto.targetPlatformKey
-            };
-
-            var bundles = new List<PatchBundleDescriptor>();
-            if (dto.bundles != null)
-            {
-                for (var i = 0; i < dto.bundles.Length; i++)
-                {
-                    var source = dto.bundles[i];
-                    bundles.Add(new PatchBundleDescriptor
-                    {
-                        BundleGroupName = source.bundleGroupName,
-                        FileName = source.bundleFileName,
-                        SizeBytes = source.sizeBytes,
-                        Sha256Hex = source.sha256Hex
-                    });
-                }
-            }
-
-            var assets = new List<PatchAssetDescriptor>();
-            if (dto.assets != null)
-            {
-                for (var i = 0; i < dto.assets.Length; i++)
-                {
-                    var source = dto.assets[i];
-                    assets.Add(new PatchAssetDescriptor
-                    {
-                        AssetKey = source.assetKey,
-                        BundleGroupName = source.bundleGroupName,
-                        InternalPath = source.internalAssetPath
-                    });
-                }
-            }
-
-            manifest.Bundles = bundles.ToArray();
-            manifest.Assets = assets.ToArray();
-            return manifest;
-        }
-
-        [Serializable]
-        private sealed class BuildManifestDto
-        {
-            public int schemaVersion;
-            public string contentVersion;
-            public string targetPlatformKey;
-            public BuildBundleDto[] bundles;
-            public BuildAssetDto[] assets;
-        }
-
-        [Serializable]
-        private sealed class BuildBundleDto
-        {
-            public string bundleGroupName;
-            public string bundleFileName;
-            public long sizeBytes;
-            public string sha256Hex;
-        }
-
-        [Serializable]
-        private sealed class BuildAssetDto
-        {
-            public string assetKey;
-            public string sourcePath;
-            public string internalAssetPath;
-            public string bundleGroupName;
+            return BuildManifestReader.Read(
+                Path.Combine(contentDirectory, FullChainLayout.ManifestFileName));
         }
 
         /// <summary>Counts real bundle loads so "load once" can be asserted.</summary>
@@ -451,67 +384,6 @@ namespace Game.AssetSystem.FullChain
             {
                 _loadCount++;
                 return _inner.LoadAsync(bundle, cancellationToken);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Runs the whole chain once and prints <c>[FullChain][A]..[G]</c> plus a
-    /// summary to the console. Logs a clear hint when content is missing.
-    /// Created by <c>FullChainDemoBootstrap</c>; never boots itself.
-    /// </summary>
-    public sealed class FullChainScenarioDemo : MonoBehaviour
-    {
-        /// <summary>Creates the runner. Safe to call more than once.</summary>
-        public static FullChainScenarioDemo Spawn()
-        {
-            var existing = FindFirstObjectByType<FullChainScenarioDemo>();
-
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var go = new GameObject("[FullChainScenarioDemo]");
-            DontDestroyOnLoad(go);
-
-            return go.AddComponent<FullChainScenarioDemo>();
-        }
-
-        /// <summary>True while the runner is alive (used by the scene bootstrap).</summary>
-        public static bool IsRunning
-        {
-            get { return FindFirstObjectByType<FullChainScenarioDemo>() != null; }
-        }
-
-        private async void Start()
-        {
-            try
-            {
-                var report = await FullChainRunner.RunAsync();
-
-                if (!report.ContentFound)
-                {
-                    Debug.LogWarning(
-                        "[FullChain] content not built yet. " +
-                        "Run Tools/Game Asset System/Build Full-Chain Demo Content, " +
-                        "then enter play mode again.");
-                    return;
-                }
-
-                if (!report.Passed)
-                {
-                    Debug.LogError(
-                        "[FullChain] FAILED. " + string.Join(" | ", report.Violations));
-                }
-                else
-                {
-                    Debug.Log("[FullChain] PASSED. " + report);
-                }
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError("[FullChain] crashed: " + exception);
             }
         }
     }

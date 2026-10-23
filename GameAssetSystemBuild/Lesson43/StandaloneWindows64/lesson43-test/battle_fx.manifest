@@ -1,13 +1,13 @@
 ManifestFileVersion: 0
 UnityVersion: 6000.0.32f1
-CRC: 3993416759
+CRC: 64486376
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 7d9d2c5d0f3273b2ebd16f9329d9194f
+    Hash: 8119daf919ce102e90d92f3472ca06c2
   TypeTreeHash:
     serializedVersion: 2
-    Hash: d00f1a8f3b0f83b377553c5c0dd13913
+    Hash: 317bd54eab5cb736e3f2fbfb75d38660
   IncrementalBuildHash:
     serializedVersion: 2
     Hash: ba8a18d0eac2aa6493c146092f63f778
@@ -22,4 +22,4 @@ Assets:
 - Assets/Game/AssetSystem/Lesson43Sample/Content/Battle/Fx/FxB.asset
 - Assets/Game/AssetSystem/Lesson43Sample/Content/Battle/Fx/FxA.asset
 Dependencies:
-- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/.building-33490f992abc46e69510c624f1b9536b/lesson43-test/battle_audio
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/.building-930114c25d864dcd9e881724aabcd57d/lesson43-test/battle_audio

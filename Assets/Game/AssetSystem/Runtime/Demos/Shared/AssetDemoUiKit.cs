@@ -1,9 +1,13 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Game.AssetSystem.Demos.Interactive
+namespace Game.AssetSystem.Demos.Shared
 {
-    /// <summary>Small uGUI builder used by the interactive demo (no prefabs).</summary>
+    /// <summary>
+    /// Small uGUI builder used by the demo scenes (no prefabs). Shared by the
+    /// full-feature dashboard; it is presentation only and knows nothing about
+    /// the asset framework.
+    /// </summary>
     public static class AssetDemoUiKit
     {
         public static readonly Color Background = new Color(0.043f, 0.055f, 0.078f, 1f);

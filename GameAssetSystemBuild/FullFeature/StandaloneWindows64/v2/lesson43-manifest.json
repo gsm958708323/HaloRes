@@ -3,7 +3,7 @@
     "contentVersion": "v2",
     "targetPlatformKey": "StandaloneWindows64",
     "buildTarget": "StandaloneWindows64",
-    "generatedAtUtc": "2026-10-22T16:39:45.4333857Z",
+    "generatedAtUtc": "2026-10-23T13:11:11.4497380Z",
     "bundles": [
         {
             "bundleGroupName": "battle_fx",
