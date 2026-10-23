@@ -1,13 +1,13 @@
 ManifestFileVersion: 0
 UnityVersion: 6000.0.32f1
-CRC: 2806298379
+CRC: 3463331594
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 56fd0ca9c0167fc938cf19ce4e757050
+    Hash: d69992f8e426ae831155e612b0a317f6
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 317bd54eab5cb736e3f2fbfb75d38660
+    Hash: d00f1a8f3b0f83b377553c5c0dd13913
   IncrementalBuildHash:
     serializedVersion: 2
     Hash: e38b59ed625dbb057793fa87606f816a
@@ -22,4 +22,4 @@ Assets:
 - Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopRoot.asset
 - Assets/Game/AssetSystem/Lesson43Sample/Content/UI/Shop/ShopIcon.asset
 Dependencies:
-- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/.building-e4d0cf88a8e547089d3519e7169012fb/lesson43-test/battle_fx
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/Lesson43/StandaloneWindows64/.building-33490f992abc46e69510c624f1b9536b/lesson43-test/battle_fx

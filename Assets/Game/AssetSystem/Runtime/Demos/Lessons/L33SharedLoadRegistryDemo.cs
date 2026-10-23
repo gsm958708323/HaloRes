@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.Core;
 using Game.AssetSystem.Loading;
+using Game.AssetSystem.Simulation;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -40,13 +41,13 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunReuseScenario(
             CancellationToken cancellationToken)
         {
-            var backends = new List<LessonAssetLoadBackend<LessonSharedAsset>>();
+            var backends = new List<SimulatedAssetLoadBackend<LessonSharedAsset>>();
             var abandonedReleaseCount = 0;
 
             var registry = new SharedLoadRegistry<LessonSharedAsset>(
                 key =>
                 {
-                    var backend = new LessonAssetLoadBackend<LessonSharedAsset>(
+                    var backend = new SimulatedAssetLoadBackend<LessonSharedAsset>(
                         200,
                         () => new LessonSharedAsset(key + ".payload"));
 
@@ -105,7 +106,7 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunAbandonedAndReplaceScenario(
             CancellationToken cancellationToken)
         {
-            var backends = new List<LessonAssetLoadBackend<LessonSharedAsset>>();
+            var backends = new List<SimulatedAssetLoadBackend<LessonSharedAsset>>();
             var abandonedReleaseCount = 0;
             var creationIndex = 0;
 
@@ -115,7 +116,7 @@ namespace Game.AssetSystem.Demos.Lessons
                     var index = creationIndex++;
                     var delay = index == 0 ? 250 : 60;
 
-                    var backend = new LessonAssetLoadBackend<LessonSharedAsset>(
+                    var backend = new SimulatedAssetLoadBackend<LessonSharedAsset>(
                         delay,
                         () => new LessonSharedAsset(key + ".gen" + index));
 

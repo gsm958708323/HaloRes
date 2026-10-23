@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.Patch;
+using Game.AssetSystem.Simulation;
 using Game.AssetSystem.Storage;
 using UnityEngine;
 
@@ -33,14 +34,14 @@ namespace Game.AssetSystem.Demos.Lessons
             var fileStore = new AssetFileStore(root);
             fileStore.EnsureDirectories();
 
-            var staging = new PatchStagingStore(root);
+            var staging = new PatchStagingStore(Path.Combine(root, "staging"));
 
             Debug.Log("[Lesson5] root=" + root);
 
             CreateActiveV1(fileStore);
             LogActive("AfterCreateV1", fileStore);
 
-            var server = new LessonPatchServer();
+            var server = new SimulatedCdnServer();
 
             var v2Core = CreateBytes(8192, 31);
             var v2Fx = CreateBytes(16384, 47);
@@ -52,23 +53,25 @@ namespace Game.AssetSystem.Demos.Lessons
 
             var v2Manifest = new PatchManifest
             {
-                schemaVersion = 1,
-                contentVersion = "v2",
-                bundles = new[]
+                SchemaVersion = 1,
+                ContentVersion = "v2",
+                Bundles = new[]
                 {
                     new PatchBundleDescriptor
                     {
-                        bundleFileName = "bundle_core.bundle",
-                        url = "sim://v2/bundle_core.bundle",
-                        sizeBytes = v2Core.Length,
-                        sha256Hex = v2CoreHash
+                        BundleGroupName = "core",
+                        FileName = "bundle_core.bundle",
+                        Url = "sim://v2/bundle_core.bundle",
+                        SizeBytes = v2Core.Length,
+                        Sha256Hex = v2CoreHash
                     },
                     new PatchBundleDescriptor
                     {
-                        bundleFileName = "bundle_fx.bundle",
-                        url = "sim://v2/bundle_fx.bundle",
-                        sizeBytes = v2Fx.Length,
-                        sha256Hex = v2FxHash
+                        BundleGroupName = "fx",
+                        FileName = "bundle_fx.bundle",
+                        Url = "sim://v2/bundle_fx.bundle",
+                        SizeBytes = v2Fx.Length,
+                        Sha256Hex = v2FxHash
                     }
                 }
             };
@@ -79,7 +82,7 @@ namespace Game.AssetSystem.Demos.Lessons
             var firstV2 = await new PatchApplyController(
                     fileStore,
                     staging,
-                    new LessonPatchTransport(server),
+                    new SimulatedPatchTransport(server),
                     1)
                 .ApplyAsync(
                     v2Manifest,
@@ -104,7 +107,7 @@ namespace Game.AssetSystem.Demos.Lessons
             var secondV2 = await new PatchApplyController(
                     fileStore,
                     staging,
-                    new LessonPatchTransport(server),
+                    new SimulatedPatchTransport(server),
                     3)
                 .ApplyAsync(
                     v2Manifest,
@@ -122,16 +125,17 @@ namespace Game.AssetSystem.Demos.Lessons
 
             var v3Manifest = new PatchManifest
             {
-                schemaVersion = 1,
-                contentVersion = "v3",
-                bundles = new[]
+                SchemaVersion = 1,
+                ContentVersion = "v3",
+                Bundles = new[]
                 {
                     new PatchBundleDescriptor
                     {
-                        bundleFileName = "bundle_audio.bundle",
-                        url = "sim://v3/bundle_audio.bundle",
-                        sizeBytes = v3Audio.Length,
-                        sha256Hex = v3Hash
+                        BundleGroupName = "audio",
+                        FileName = "bundle_audio.bundle",
+                        Url = "sim://v3/bundle_audio.bundle",
+                        SizeBytes = v3Audio.Length,
+                        Sha256Hex = v3Hash
                     }
                 }
             };
@@ -142,7 +146,7 @@ namespace Game.AssetSystem.Demos.Lessons
             var firstV3 = await new PatchApplyController(
                     fileStore,
                     staging,
-                    new LessonPatchTransport(server),
+                    new SimulatedPatchTransport(server),
                     1)
                 .ApplyAsync(
                     v3Manifest,
@@ -168,7 +172,7 @@ namespace Game.AssetSystem.Demos.Lessons
             var secondV3 = await new PatchApplyController(
                     fileStore,
                     staging,
-                    new LessonPatchTransport(server),
+                    new SimulatedPatchTransport(server),
                     3)
                 .ApplyAsync(
                     v3Manifest,

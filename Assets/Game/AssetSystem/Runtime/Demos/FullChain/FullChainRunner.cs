@@ -4,7 +4,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.FullChain;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Content;
+using Game.AssetSystem.Diagnostics;
+using Game.AssetSystem.Patch;
+using Game.AssetSystem.Memory;
 using Game.AssetSystem.Release;
 using UnityEngine;
 
@@ -123,9 +128,19 @@ namespace Game.AssetSystem.FullChain
                 " assets=" + activation.ActiveContext.AssetCount);
 
             // ---- 阶段 B：UI 与 Battle 共享同一 Asset ------------------------
-            var factory1 = new CountingPayloadFactory();
-            var runtime1 = new BundleRuntime(activation.ActiveContext, factory1);
-            var cache1 = new AssetCache(activation.ActiveContext, runtime1);
+            var policy1 = new AssetMemoryPolicy();
+            var diagnostics1 = new AssetRuntimeDiagnostics();
+            var loader1 = new CountingBundleLoader();
+            var runtime1 = new BundleRuntime(
+                activation.ActiveContext.CreateBundleCatalog(),
+                loader1,
+                policy1,
+                diagnostics1);
+            var cache1 = new AssetCache(
+                activation.ActiveContext.CreateAssetCatalog(),
+                runtime1,
+                policy1,
+                diagnostics1);
 
             var uiScope = cache1.CreateScope("UI.Shop");
             var battleScope = cache1.CreateScope("Battle.Scene");
@@ -138,7 +153,7 @@ namespace Game.AssetSystem.FullChain
             var battleResult = await battleTask.Completion;
 
             report.Owners = 2;
-            report.BundleLoadsV1 = factory1.LoadCount;
+            report.BundleLoadsV1 = loader1.LoadCount;
             report.V1Label = uiResult.Value == null ? "<null>" : uiResult.Value.label;
             report.SameAssetInstance = ReferenceEquals(uiResult.Value, battleResult.Value);
 
@@ -151,9 +166,9 @@ namespace Game.AssetSystem.FullChain
                 return report;
             }
 
-            if (factory1.LoadCount != 1)
+            if (loader1.LoadCount != 1)
             {
-                report.Violations.Add("v1 bundle loaded " + factory1.LoadCount + " times, expected 1");
+                report.Violations.Add("v1 bundle loaded " + loader1.LoadCount + " times, expected 1");
             }
 
             if (!report.SameAssetInstance)
@@ -164,7 +179,7 @@ namespace Game.AssetSystem.FullChain
             Debug.Log(
                 "[FullChain][B] shared load ui=" + uiResult.Status +
                 " battle=" + battleResult.Status +
-                " bundleLoads=" + factory1.LoadCount +
+                " bundleLoads=" + loader1.LoadCount +
                 " sameInstance=" + report.SameAssetInstance +
                 " label=" + report.V1Label);
 
@@ -243,9 +258,19 @@ namespace Game.AssetSystem.FullChain
                 return report;
             }
 
-            var factory2 = new CountingPayloadFactory();
-            var runtime2 = new BundleRuntime(activation.ActiveContext, factory2);
-            var cache2 = new AssetCache(activation.ActiveContext, runtime2);
+            var policy2 = new AssetMemoryPolicy();
+            var diagnostics2 = new AssetRuntimeDiagnostics();
+            var loader2 = new CountingBundleLoader();
+            var runtime2 = new BundleRuntime(
+                activation.ActiveContext.CreateBundleCatalog(),
+                loader2,
+                policy2,
+                diagnostics2);
+            var cache2 = new AssetCache(
+                activation.ActiveContext.CreateAssetCatalog(),
+                runtime2,
+                policy2,
+                diagnostics2);
 
             // v1 运行时已完全丢弃：v1/v2 的 Bundle 里存在内容相同的资源，
             // 不彻底卸载会触发 "another AssetBundle with the same files" 冲突。
@@ -260,7 +285,7 @@ namespace Game.AssetSystem.FullChain
             var v2Task = cache2.AcquireAsync<DemoGraphNode>(key, v2Scope, "UI.Shop.v2");
             var v2Result = await v2Task.Completion;
 
-            report.BundleLoadsV2 = factory2.LoadCount;
+            report.BundleLoadsV2 = loader2.LoadCount;
             report.V2Label = v2Result.Value == null ? "<null>" : v2Result.Value.label;
 
             if (v2Result.Status != AssetLoadStatus.Succeeded)
@@ -410,9 +435,9 @@ namespace Game.AssetSystem.FullChain
         }
 
         /// <summary>Counts real bundle loads so "load once" can be asserted.</summary>
-        private sealed class CountingPayloadFactory : IBundlePayloadFactory
+        private sealed class CountingBundleLoader : IBundleLoader
         {
-            private readonly RealBundlePayloadFactory _inner = new RealBundlePayloadFactory();
+            private readonly RealBundleLoader _inner = new RealBundleLoader();
             private int _loadCount;
 
             public int LoadCount
@@ -421,7 +446,7 @@ namespace Game.AssetSystem.FullChain
             }
 
             public Task<IBundlePayload> LoadAsync(
-                RuntimeBundle bundle,
+                BundleInfo bundle,
                 CancellationToken cancellationToken)
             {
                 _loadCount++;

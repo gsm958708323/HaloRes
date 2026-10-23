@@ -4,8 +4,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons

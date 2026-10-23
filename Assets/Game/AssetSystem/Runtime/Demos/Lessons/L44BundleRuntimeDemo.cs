@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.Bundles;
 using Game.AssetSystem.Core;
+using Game.AssetSystem.Simulation;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -61,7 +62,7 @@ namespace Game.AssetSystem.Demos.Lessons
                     }
                 });
 
-            var loader = new LessonBundleLoader(150);
+            var loader = new SimulatedBundleLoader(150);
             var runtime = new BundleRuntime(catalog, loader);
 
             await RunDependencyAndIdleScenario(
@@ -94,7 +95,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
         private static async Task RunDependencyAndIdleScenario(
             BundleRuntime runtime,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId shop,
             BundleId fx,
             BundleId audio,
@@ -149,7 +150,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
         private static async Task RunConcurrentCancelScenario(
             BundleRuntime runtime,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId fx,
             CancellationToken cancellationToken)
         {
@@ -196,7 +197,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
         private static async Task RunMissingDependencyScenario(
             BundleRuntime runtime,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId broken,
             CancellationToken cancellationToken)
         {

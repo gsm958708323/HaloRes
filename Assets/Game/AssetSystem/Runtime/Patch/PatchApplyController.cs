@@ -13,12 +13,14 @@ namespace Game.AssetSystem.Patch
         private readonly PatchStagingStore _staging;
         private readonly IPatchTransport _transport;
         private readonly int _maxAttemptsPerBundle;
+        private readonly bool _activateAfterApply;
 
         public PatchApplyController(
             AssetFileStore fileStore,
             PatchStagingStore staging,
             IPatchTransport transport,
-            int maxAttemptsPerBundle = 3)
+            int maxAttemptsPerBundle = 3,
+            bool activateAfterApply = true)
         {
             _fileStore = fileStore ??
                          throw new ArgumentNullException(nameof(fileStore));
@@ -34,6 +36,7 @@ namespace Game.AssetSystem.Patch
             }
 
             _maxAttemptsPerBundle = maxAttemptsPerBundle;
+            _activateAfterApply = activateAfterApply;
         }
 
         public async Task<PatchApplyResult> ApplyAsync(
@@ -71,18 +74,18 @@ namespace Game.AssetSystem.Patch
             {
                 _staging.CleanupStaleParts(manifest);
 
-                if (activeBefore == manifest.contentVersion)
+                if (activeBefore == manifest.ContentVersion)
                 {
                     var allValid = true;
 
-                    for (var i = 0; i < manifest.bundles.Length; i++)
+                    for (var i = 0; i < manifest.Bundles.Length; i++)
                     {
-                        var bundle = manifest.bundles[i];
+                        var bundle = manifest.Bundles[i];
 
                         if (!_fileStore.VerifyBundle(
-                            manifest.contentVersion,
-                            bundle.bundleFileName,
-                            bundle.sha256Hex,
+                            manifest.ContentVersion,
+                            bundle.FileName,
+                            bundle.Sha256Hex,
                             out _,
                             out _))
                         {
@@ -121,25 +124,25 @@ namespace Game.AssetSystem.Patch
                 var downloaded = 0;
                 long resumeTotal = 0;
 
-                for (var i = 0; i < manifest.bundles.Length; i++)
+                for (var i = 0; i < manifest.Bundles.Length; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var bundle = manifest.bundles[i];
+                    var bundle = manifest.Bundles[i];
                     var report = new PatchBundleReport
                     {
-                        BundleFileName = bundle.bundleFileName
+                        BundleFileName = bundle.FileName
                     };
 
                     var targetPath = _fileStore.GetBundlePath(
-                        manifest.contentVersion,
-                        bundle.bundleFileName);
+                        manifest.ContentVersion,
+                        bundle.FileName);
 
                     if (File.Exists(targetPath) &&
                         _fileStore.VerifyBundle(
-                            manifest.contentVersion,
-                            bundle.bundleFileName,
-                            bundle.sha256Hex,
+                            manifest.ContentVersion,
+                            bundle.FileName,
+                            bundle.Sha256Hex,
                             out _,
                             out _))
                     {
@@ -148,8 +151,8 @@ namespace Game.AssetSystem.Patch
                         skipped++;
 
                         _staging.DeletePartAndMeta(
-                            manifest.contentVersion,
-                            bundle.bundleFileName);
+                            manifest.ContentVersion,
+                            bundle.FileName);
 
                         result.Bundles.Add(report);
                         continue;
@@ -187,18 +190,18 @@ namespace Game.AssetSystem.Patch
                         cancellationToken.ThrowIfCancellationRequested();
 
                         var partPath = _staging.GetPartPath(
-                            manifest.contentVersion,
-                            bundle.bundleFileName);
+                            manifest.ContentVersion,
+                            bundle.FileName);
 
                         PatchDownloadResponse downloadResponse;
 
                         try
                         {
                             downloadResponse = await _transport.DownloadAsync(
-                                bundle.url,
+                                bundle.Url,
                                 partPath,
                                 offset,
-                                bundle.sizeBytes,
+                                bundle.SizeBytes,
                                 progress,
                                 cancellationToken).ConfigureAwait(true);
                         }
@@ -221,8 +224,8 @@ namespace Game.AssetSystem.Patch
                         if (!downloadResponse.Success)
                         {
                             offset = _staging.GetPartLength(
-                                manifest.contentVersion,
-                                bundle.bundleFileName);
+                                manifest.ContentVersion,
+                                bundle.FileName);
 
                             if (downloadResponse.ErrorCode ==
                                 PatchTransportErrorCode.RangeNotSupported &&
@@ -231,8 +234,8 @@ namespace Game.AssetSystem.Patch
                                 report.RangeFallback = true;
 
                                 _staging.DeletePartAndMeta(
-                                    manifest.contentVersion,
-                                    bundle.bundleFileName);
+                                    manifest.ContentVersion,
+                                    bundle.FileName);
 
                                 if (!_staging.PreparePartForResume(
                                     manifest,
@@ -262,7 +265,7 @@ namespace Game.AssetSystem.Patch
                                     PatchApplyErrorCode.DownloadFailed;
                                 result.Message =
                                     "Bundle download failed: " +
-                                    bundle.bundleFileName +
+                                    bundle.FileName +
                                     " " + downloadResponse.Message;
                                 return result;
                             }
@@ -276,20 +279,20 @@ namespace Game.AssetSystem.Patch
 
                         progress?.Report(new PatchProgress(
                             PatchPhase.Verifying,
-                            bundle.bundleFileName,
+                            bundle.FileName,
                             0,
-                            bundle.sizeBytes,
+                            bundle.SizeBytes,
                             "verifying downloaded bundle"));
 
                         if (!BundleHashVerifier.VerifySha256Hex(
                             partPath,
-                            bundle.sha256Hex,
+                            bundle.Sha256Hex,
                             out _,
                             out var verifyError))
                         {
                             _staging.DeletePartAndMeta(
-                                manifest.contentVersion,
-                                bundle.bundleFileName);
+                                manifest.ContentVersion,
+                                bundle.FileName);
 
                             if (attempt + 1 >= _maxAttemptsPerBundle)
                             {
@@ -325,15 +328,15 @@ namespace Game.AssetSystem.Patch
 
                         var commit = _fileStore.CommitBundleFromTemp(
                             partPath,
-                            manifest.contentVersion,
-                            bundle.bundleFileName,
-                            bundle.sha256Hex);
+                            manifest.ContentVersion,
+                            bundle.FileName,
+                            bundle.Sha256Hex);
 
                         if (commit.Success)
                         {
                             _staging.DeleteMeta(
-                                manifest.contentVersion,
-                                bundle.bundleFileName);
+                                manifest.ContentVersion,
+                                bundle.FileName);
 
                             report.Committed = true;
                             committed = true;
@@ -344,8 +347,8 @@ namespace Game.AssetSystem.Patch
                         report.Error = commit.Error.ToString();
 
                         _staging.DeletePartAndMeta(
-                            manifest.contentVersion,
-                            bundle.bundleFileName);
+                            manifest.ContentVersion,
+                            bundle.FileName);
 
                         if (commit.Error.Code !=
                             StorageErrorCode.HashMismatch ||
@@ -385,7 +388,7 @@ namespace Game.AssetSystem.Patch
                         result.ErrorCode = PatchApplyErrorCode.DownloadFailed;
                         result.Message =
                             "Bundle did not commit: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                         return result;
                     }
 
@@ -397,38 +400,54 @@ namespace Game.AssetSystem.Patch
                     null,
                     0,
                     0,
-                    "activating " + manifest.contentVersion));
+                    "activating " + manifest.ContentVersion));
 
-                var expectations =
-                    new List<BundleHashExpectation>(manifest.bundles.Length);
-
-                for (var i = 0; i < manifest.bundles.Length; i++)
+                // The file-store pointer swap is a storage primitive, not a
+                // second activation policy. Callers that own a live runtime
+                // (FullFeature, FullChain) pass activateAfterApply: false and
+                // let PatchActivationService be the only thing that decides
+                // whether a version may become active.
+                if (_activateAfterApply)
                 {
-                    var bundle = manifest.bundles[i];
+                    var expectations =
+                        new List<BundleHashExpectation>(manifest.Bundles.Length);
 
-                    expectations.Add(new BundleHashExpectation(
-                        bundle.bundleFileName,
-                        bundle.sha256Hex));
+                    for (var i = 0; i < manifest.Bundles.Length; i++)
+                    {
+                        var bundle = manifest.Bundles[i];
+
+                        expectations.Add(new BundleHashExpectation(
+                            bundle.FileName,
+                            bundle.Sha256Hex));
+                    }
+
+                    var activation = _fileStore.ActivateVersion(
+                        manifest.ContentVersion,
+                        expectations);
+
+                    if (!activation.Success)
+                    {
+                        result.Status = PatchApplyStatus.Failed;
+                        result.ErrorCode = PatchApplyErrorCode.ActivationFailed;
+                        result.Message = activation.Error.ToString();
+                        return result;
+                    }
+
+                    result.ActiveVersionAfter = manifest.ContentVersion;
                 }
 
-                var activation = _fileStore.ActivateVersion(
-                    manifest.contentVersion,
-                    expectations);
-
-                if (!activation.Success)
-                {
-                    result.Status = PatchApplyStatus.Failed;
-                    result.ErrorCode = PatchApplyErrorCode.ActivationFailed;
-                    result.Message = activation.Error.ToString();
-                    return result;
-                }
-
+                result.ContentVersion = manifest.ContentVersion;
+                result.BundleRoot = Path.Combine(
+                    _fileStore.ContentDirectory,
+                    manifest.ContentVersion);
                 result.Status = PatchApplyStatus.Succeeded;
                 result.ErrorCode = PatchApplyErrorCode.None;
-                result.Message = "Patch applied successfully.";
-                result.ActiveVersionAfter = manifest.contentVersion;
+                result.Message = _activateAfterApply
+                    ? "Patch applied and activated."
+                    : "Patch applied; activation left to the caller.";
                 result.BundlesSkipped = skipped;
                 result.BundlesDownloaded = downloaded;
+                result.BundlesCommitted = downloaded;
                 result.ResumeOffsetTotal = resumeTotal;
 
                 progress?.Report(new PatchProgress(
@@ -462,22 +481,22 @@ namespace Game.AssetSystem.Patch
                 return false;
             }
 
-            if (manifest.schemaVersion != 1)
+            if (manifest.SchemaVersion != 1)
             {
                 error = "Unsupported manifest schemaVersion: " +
-                        manifest.schemaVersion;
+                        manifest.SchemaVersion;
                 return false;
             }
 
-            if (!AssetFileStore.IsSimpleFileName(manifest.contentVersion))
+            if (!AssetFileStore.IsSimpleFileName(manifest.ContentVersion))
             {
                 error = "Invalid contentVersion: " +
-                        manifest.contentVersion;
+                        manifest.ContentVersion;
                 return false;
             }
 
-            if (manifest.bundles == null ||
-                manifest.bundles.Length == 0)
+            if (manifest.Bundles == null ||
+                manifest.Bundles.Length == 0)
             {
                 error = "Manifest has no bundles.";
                 return false;
@@ -485,9 +504,9 @@ namespace Game.AssetSystem.Patch
 
             var names = new HashSet<string>(StringComparer.Ordinal);
 
-            for (var i = 0; i < manifest.bundles.Length; i++)
+            for (var i = 0; i < manifest.Bundles.Length; i++)
             {
-                var bundle = manifest.bundles[i];
+                var bundle = manifest.Bundles[i];
 
                 if (bundle == null)
                 {
@@ -495,39 +514,39 @@ namespace Game.AssetSystem.Patch
                     return false;
                 }
 
-                if (!AssetFileStore.IsSimpleFileName(bundle.bundleFileName))
+                if (!AssetFileStore.IsSimpleFileName(bundle.FileName))
                 {
                     error = "Invalid bundle file name: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                     return false;
                 }
 
-                if (!names.Add(bundle.bundleFileName))
+                if (!names.Add(bundle.FileName))
                 {
                     error = "Duplicate bundle file name: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                     return false;
                 }
 
-                if (string.IsNullOrWhiteSpace(bundle.url))
+                if (string.IsNullOrWhiteSpace(bundle.Url))
                 {
                     error = "Bundle URL is empty: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                     return false;
                 }
 
-                if (bundle.sizeBytes <= 0)
+                if (bundle.SizeBytes <= 0)
                 {
                     error = "Bundle size must be > 0: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                     return false;
                 }
 
-                if (string.IsNullOrWhiteSpace(bundle.sha256Hex) ||
-                    bundle.sha256Hex.Length != 64)
+                if (string.IsNullOrWhiteSpace(bundle.Sha256Hex) ||
+                    bundle.Sha256Hex.Length != 64)
                 {
                     error = "Invalid SHA256 for bundle: " +
-                            bundle.bundleFileName;
+                            bundle.FileName;
                     return false;
                 }
             }

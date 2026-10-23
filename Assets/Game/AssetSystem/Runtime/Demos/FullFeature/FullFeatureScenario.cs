@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using Game.AssetSystem.Memory;
 
 namespace Game.AssetSystem.Demos.FullFeature

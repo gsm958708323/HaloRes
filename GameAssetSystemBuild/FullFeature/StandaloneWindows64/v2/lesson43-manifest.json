@@ -3,13 +3,13 @@
     "contentVersion": "v2",
     "targetPlatformKey": "StandaloneWindows64",
     "buildTarget": "StandaloneWindows64",
-    "generatedAtUtc": "2026-10-19T16:44:32.0498020Z",
+    "generatedAtUtc": "2026-10-22T16:39:45.4333857Z",
     "bundles": [
         {
             "bundleGroupName": "battle_fx",
             "bundleFileName": "battle_fx",
-            "sizeBytes": 1959,
-            "sha256Hex": "8d028070fd33d21b25bf3debffdac5213598408d51de84537628a60ba13aa0f4",
+            "sizeBytes": 1962,
+            "sha256Hex": "8066a45d7b9709095e1ad90f2d517ee1dc20753d5076ad5c9f500964b82e2f22",
             "dependencies": [
                 "shared"
             ]
@@ -17,15 +17,15 @@
         {
             "bundleGroupName": "shared",
             "bundleFileName": "shared",
-            "sizeBytes": 1956,
-            "sha256Hex": "1a0e6b1a6a82c3a805f683b2a9899b95872da924dc6beaefd85e7b351d29fefe",
+            "sizeBytes": 1960,
+            "sha256Hex": "6fdff57a9b19bffd66eae8c3bfd4ac42ab3506415f441991aae30cdf23416a96",
             "dependencies": []
         },
         {
             "bundleGroupName": "ui_shop",
             "bundleFileName": "ui_shop",
-            "sizeBytes": 1955,
-            "sha256Hex": "a4e91c7585cc59ec0d901643c0676b09f79726bd761a0a38ca508446f81c6334",
+            "sizeBytes": 1958,
+            "sha256Hex": "b02437421f71c7590d78b695f585cabee5313ea5742717d891d9097d2b283b56",
             "dependencies": [
                 "shared"
             ]

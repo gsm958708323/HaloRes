@@ -1,5 +1,5 @@
 using System;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Bundles;
 using UnityEngine;
 
 namespace Game.AssetSystem.Release

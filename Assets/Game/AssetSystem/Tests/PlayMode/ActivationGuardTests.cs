@@ -4,7 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;

@@ -4,10 +4,15 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Content;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Diagnostics;
 using Game.AssetSystem.Memory;
+using Game.AssetSystem.Patch;
 using Game.AssetSystem.Release;
+using Game.AssetSystem.Simulation;
 using Game.AssetSystem.Storage;
 using UnityEngine;
 
@@ -64,6 +69,8 @@ namespace Game.AssetSystem.Demos.FullFeature
         private readonly List<string> _logs = new List<string>();
 
         private AssetLoadGate _gate;
+        private AssetMemoryPolicy _policy;
+        private AssetRuntimeDiagnostics _diagnostics;
         private BundleRuntime _bundles;
         private AssetCache _cache;
         private AssetMemoryEvaluator _memory;
@@ -395,11 +402,22 @@ namespace Game.AssetSystem.Demos.FullFeature
                 MaxConcurrent = 4
             };
 
-            _bundles = new BundleRuntime(
-                _activation.ActiveContext,
-                new GatedPayloadFactory(new RealBundlePayloadFactory(), _gate));
+            // One policy and one diagnostics sink shared by the bundle runtime
+            // and the asset cache, so both halves report into the same view.
+            _policy = new AssetMemoryPolicy();
+            _diagnostics = new AssetRuntimeDiagnostics();
 
-            _cache = new AssetCache(_activation.ActiveContext, _bundles);
+            _bundles = new BundleRuntime(
+                _activation.ActiveContext.CreateBundleCatalog(),
+                new GatedBundleLoader(new RealBundleLoader(), _gate),
+                _policy,
+                _diagnostics);
+
+            _cache = new AssetCache(
+                _activation.ActiveContext.CreateAssetCatalog(),
+                _bundles,
+                _policy,
+                _diagnostics);
 
             _memory = new AssetMemoryEvaluator(_cache, _bundles)
             {
@@ -552,15 +570,22 @@ namespace Game.AssetSystem.Demos.FullFeature
                     return report;
                 }
 
-                server.Put(bundle.FileName, File.ReadAllBytes(path));
+                // The simulated CDN is keyed by URL; the file name is the key.
+                bundle.Url = bundle.FileName;
+                server.AddFile(bundle.FileName, File.ReadAllBytes(path));
                 sizes.Add(bundle.SizeBytes);
                 report.TotalBytes += bundle.SizeBytes;
             }
 
-            var transport = new FullFeatureDownloadTransport(
-                sizes,
-                interruptAtPercent,
-                supportsRange);
+            server.SupportsRange = supportsRange;
+
+            var transport = new SimulatedPatchTransport(server);
+
+            if (interruptAtPercent > 0 && interruptAtPercent < 100)
+            {
+                transport.TransferBudget =
+                    DownloadBudget.Compute(sizes, interruptAtPercent);
+            }
 
             transport.Progress = transferred =>
             {
@@ -574,15 +599,18 @@ namespace Game.AssetSystem.Demos.FullFeature
                 }
             };
 
-            var service = new PatchDownloadService(
-                new PatchStagingStore(StagingRoot),
-                ContentRoot);
+            // AssetFileStore appends /content itself, so hand it the client
+            // root, not ContentRoot.
+            var fileStore = new AssetFileStore(_clientRoot);
+            fileStore.EnsureDirectories();
 
-            var result = await service.ApplyAsync(
-                manifest,
-                server,
-                transport,
-                cancellationToken);
+            var result = await new PatchApplyController(
+                    fileStore,
+                    new PatchStagingStore(StagingRoot),
+                    transport,
+                    1,
+                    false)
+                .ApplyAsync(manifest, null, cancellationToken);
 
             report.Status = result.Status;
             report.Message = result.Message;
@@ -790,11 +818,11 @@ namespace Game.AssetSystem.Demos.FullFeature
                    "/H" + _cache.TotalLiveHandles;
         }
 
-        public List<ContentBundleSnapshotEntry> SnapshotBundles()
+        public List<BundleSnapshotEntry> SnapshotBundles()
         {
             return _bundles == null
-                ? new List<ContentBundleSnapshotEntry>()
-                : _bundles.SnapshotBundles();
+                ? new List<BundleSnapshotEntry>()
+                : _bundles.CaptureSnapshot().Entries;
         }
 
         public List<string> SnapshotIdleAssetKeys()
@@ -832,58 +860,20 @@ namespace Game.AssetSystem.Demos.FullFeature
     }
 
     /// <summary>
-    /// Routes bundle payload loads through <see cref="AssetLoadGate"/> so at
-    /// most N bundles start per frame. The gate is what makes "loading" a state
-    /// the user can actually observe instead of one frame of work.
+    /// Turns "interrupt at N percent of the whole download" into a byte budget
+    /// for <see cref="SimulatedPatchTransport"/>. The stop point is nudged off
+    /// a bundle boundary so a partial .part always exists and the resume path
+    /// is what gets exercised.
     /// </summary>
-    internal sealed class GatedPayloadFactory : IBundlePayloadFactory
+    internal static class DownloadBudget
     {
-        private readonly IBundlePayloadFactory _inner;
-        private readonly AssetLoadGate _gate;
-
-        public GatedPayloadFactory(IBundlePayloadFactory inner, AssetLoadGate gate)
-        {
-            _inner = inner;
-            _gate = gate;
-        }
-
-        public Task<IBundlePayload> LoadAsync(
-            RuntimeBundle bundle,
-            CancellationToken cancellationToken)
-        {
-            return _gate.Enqueue(
-                () => _inner.LoadAsync(bundle, cancellationToken),
-                bundle.BundleGroupName);
-        }
-    }
-
-    /// <summary>
-    /// Simulated CDN that can stop mid-file at a global percentage. The stop
-    /// point is nudged off a bundle boundary so a partial <c>.part</c> always
-    /// exists and the resume path is what gets exercised.
-    /// </summary>
-    internal sealed class FullFeatureDownloadTransport : IContentTransport
-    {
-        private readonly SimulatedContentTransport _inner =
-            new SimulatedContentTransport();
-
-        private readonly long _budget;
-        private long _remaining;
-
-        public Action<long> Progress;
-
-        public FullFeatureDownloadTransport(
+        public static long Compute(
             IList<long> bundleSizes,
-            int interruptAtPercent,
-            bool supportsRange)
+            int interruptAtPercent)
         {
-            _inner.ServerSupportsRange = supportsRange;
-
             if (interruptAtPercent <= 0 || interruptAtPercent >= 100)
             {
-                _budget = -1;
-                _remaining = -1;
-                return;
+                return -1;
             }
 
             var total = 0L;
@@ -894,8 +884,6 @@ namespace Game.AssetSystem.Demos.FullFeature
             }
 
             var budget = total * interruptAtPercent / 100;
-
-            // Land inside a bundle, never exactly on its last byte.
             var cumulative = 0L;
 
             for (var i = 0; i < bundleSizes.Count; i++)
@@ -908,66 +896,7 @@ namespace Game.AssetSystem.Demos.FullFeature
                 }
             }
 
-            _budget = Math.Max(0, budget);
-            _remaining = _budget;
-        }
-
-        public long Transferred { get; private set; }
-
-        public Task<DownloadAttempt> DownloadAsync(
-            SimulatedCdnServer server,
-            string fileName,
-            string partPath,
-            long offset,
-            long expectedSize,
-            CancellationToken cancellationToken)
-        {
-            if (_budget >= 0)
-            {
-                if (_remaining <= 0)
-                {
-                    return Task.FromResult(
-                        DownloadAttempt.Fail("Interrupted at " + _budget + " bytes."));
-                }
-
-                var remainingInFile = expectedSize - offset;
-
-                _inner.FailAfterBytesThisAttempt =
-                    _remaining < remainingInFile
-                        ? (int)Math.Min(int.MaxValue, _remaining)
-                        : -1;
-            }
-
-            return AwaitAsync(
-                _inner.DownloadAsync(
-                    server,
-                    fileName,
-                    partPath,
-                    offset,
-                    expectedSize,
-                    cancellationToken));
-        }
-
-        private async Task<DownloadAttempt> AwaitAsync(
-            Task<DownloadAttempt> pending)
-        {
-            var attempt = await pending;
-
-            Transferred += attempt.BytesWritten;
-
-            if (_budget >= 0)
-            {
-                _remaining -= attempt.BytesWritten;
-            }
-
-            var progress = Progress;
-
-            if (progress != null)
-            {
-                progress(Transferred);
-            }
-
-            return attempt;
+            return Math.Max(0, budget);
         }
     }
 }

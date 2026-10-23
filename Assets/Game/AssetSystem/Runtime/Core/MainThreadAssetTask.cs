@@ -102,7 +102,7 @@ namespace Game.AssetSystem.Core
         {
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(() => Complete(result));
+                MainThreadPump.PostTerminal(() => Complete(result));
                 return;
             }
 

@@ -1,0 +1,16 @@
+{
+    "name": "Game.AssetSystem.Simulation",
+    "rootNamespace": "Game.AssetSystem.Simulation",
+    "references": [
+        "Game.AssetSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

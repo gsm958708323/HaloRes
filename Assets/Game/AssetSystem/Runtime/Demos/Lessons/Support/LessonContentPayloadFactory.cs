@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Bundles;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -10,8 +10,12 @@ namespace Game.AssetSystem.Demos.Lessons
     /// Content bundle payload double for the integration lessons (L5.1 / L5.2).
     /// The integration layer loads real bundles in production; the demo keeps
     /// the same lease/dependency semantics with an in-memory payload.
+    ///
+    /// It implements the same <see cref="IBundleLoader"/> seam as
+    /// <c>RealBundleLoader</c>, so a lesson exercises the real runtime and only
+    /// swaps the byte source.
     /// </summary>
-    public sealed class LessonContentPayloadFactory : IBundlePayloadFactory
+    public sealed class LessonContentPayloadFactory : IBundleLoader
     {
         private readonly int _delayMilliseconds;
 
@@ -21,7 +25,7 @@ namespace Game.AssetSystem.Demos.Lessons
         }
 
         public async Task<IBundlePayload> LoadAsync(
-            RuntimeBundle bundle,
+            BundleInfo bundle,
             CancellationToken cancellationToken)
         {
             if (bundle == null)
@@ -30,7 +34,7 @@ namespace Game.AssetSystem.Demos.Lessons
             }
 
             Debug.Log(
-                "[ContentLoader] begin " + bundle.BundleGroupName +
+                "[ContentLoader] begin " + bundle.Name +
                 " thread=" + Thread.CurrentThread.ManagedThreadId);
 
             if (_delayMilliseconds > 0)
@@ -45,7 +49,7 @@ namespace Game.AssetSystem.Demos.Lessons
             cancellationToken.ThrowIfCancellationRequested();
 
             Debug.Log(
-                "[ContentLoader] created " + bundle.BundleGroupName +
+                "[ContentLoader] created " + bundle.Name +
                 " thread=" + Thread.CurrentThread.ManagedThreadId);
 
             return new LessonContentBundlePayload(bundle);
@@ -54,10 +58,10 @@ namespace Game.AssetSystem.Demos.Lessons
 
     public sealed class LessonContentBundlePayload : IBundlePayload
     {
-        private readonly RuntimeBundle _bundle;
+        private readonly BundleInfo _bundle;
         private int _releaseCount;
 
-        public LessonContentBundlePayload(RuntimeBundle bundle)
+        public LessonContentBundlePayload(BundleInfo bundle)
         {
             _bundle = bundle ??
                       throw new ArgumentNullException(nameof(bundle));
@@ -65,7 +69,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
         public string DebugName
         {
-            get { return _bundle.BundleGroupName; }
+            get { return _bundle.Name; }
         }
 
         public int ReleaseCount
@@ -77,7 +81,7 @@ namespace Game.AssetSystem.Demos.Lessons
         {
             Debug.Log(
                 "[ContentLoader] load asset " + internalAssetPath +
-                " from " + _bundle.BundleGroupName);
+                " from " + _bundle.Name);
 
             return new LessonAssetPayload(internalAssetPath);
         }
@@ -87,7 +91,7 @@ namespace Game.AssetSystem.Demos.Lessons
             var count = Interlocked.Increment(ref _releaseCount);
 
             Debug.Log(
-                "[ContentLoader] release " + _bundle.BundleGroupName +
+                "[ContentLoader] release " + _bundle.Name +
                 " count=" + count);
         }
     }

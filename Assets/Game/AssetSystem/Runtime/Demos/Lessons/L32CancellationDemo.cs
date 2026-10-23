@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Game.AssetSystem.Core;
 using Game.AssetSystem.Loading;
+using Game.AssetSystem.Simulation;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -38,7 +39,7 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunOneWaiterCanceledScenario(
             CancellationToken cancellationToken)
         {
-            var backend = new LessonAssetLoadBackend<LessonSharedAsset>(
+            var backend = new SimulatedAssetLoadBackend<LessonSharedAsset>(
                 250,
                 () => new LessonSharedAsset("Fx.Hit.Scenario1"));
 
@@ -95,7 +96,7 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunAllWaitersCanceledLateSuccessScenario(
             CancellationToken cancellationToken)
         {
-            var backend = new LessonAssetLoadBackend<LessonSharedAsset>(
+            var backend = new SimulatedAssetLoadBackend<LessonSharedAsset>(
                 150,
                 () => new LessonSharedAsset("Fx.Hit.Late"));
 

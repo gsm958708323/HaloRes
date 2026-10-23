@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using Game.AssetSystem.Demos.Interactive;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Patch;
 using Game.AssetSystem.Memory;
 using Game.AssetSystem.Release;
 using UnityEngine;
@@ -734,9 +736,9 @@ namespace Game.AssetSystem.Demos.FullFeature
             {
                 var entry = bundles[i];
 
-                table.Append(Pad(entry.GroupName, 12))
+                table.Append(Pad(entry.Name, 12))
                     .Append(Pad(StateText(entry.State), 10))
-                    .Append("refs=").Append(entry.UserRefs)
+                    .Append("refs=").Append(entry.UserRefCount)
                     .Append(entry.WaitingCount > 0 ? " wait=" + entry.WaitingCount : "")
                     .Append(entry.HasPayload ? "  payload" : "  -")
                     .AppendLine();
@@ -779,17 +781,17 @@ namespace Game.AssetSystem.Demos.FullFeature
             }
         }
 
-        private static string StateText(ContentBundleState state)
+        private static string StateText(BundleRuntimeState state)
         {
             switch (state)
             {
-                case ContentBundleState.Loading:
+                case BundleRuntimeState.Loading:
                     return "Loading";
-                case ContentBundleState.Ready:
+                case BundleRuntimeState.Ready:
                     return "Ready";
-                case ContentBundleState.Idle:
+                case BundleRuntimeState.Idle:
                     return "Idle";
-                case ContentBundleState.Failed:
+                case BundleRuntimeState.Failed:
                     return "Failed";
                 default:
                     return "NotLoaded";

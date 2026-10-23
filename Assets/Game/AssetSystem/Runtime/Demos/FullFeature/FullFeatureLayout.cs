@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.FullFeature

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Assets;
 
 using Game.AssetSystem.Core;
 

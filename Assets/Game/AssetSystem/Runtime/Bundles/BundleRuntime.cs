@@ -95,6 +95,15 @@ namespace Game.AssetSystem.Bundles
         public BundleId Id;
         public string Name;
         public BundleId[] DirectDependencies;
+
+        /// <summary>
+        /// Absolute path of the bundle file on disk. Set when the bundle came
+        /// from installed content; a loader that resolves bundles by name does
+        /// not need it. This is what lets <see cref="IBundleLoader"/> stay the
+        /// single loader seam instead of every caller carrying a side table of
+        /// group-name to path.
+        /// </summary>
+        public string SourcePath;
     }
 
     public sealed class BundleCatalog
@@ -179,6 +188,14 @@ namespace Game.AssetSystem.Bundles
 
         public void Cancel()
         {
+            // CancelWaiter asserts main-thread affinity; a background cancel is
+            // deferred into the same ordering domain as the completion.
+            if (!MainThreadPump.IsMainThread)
+            {
+                MainThreadPump.PostTerminal(Cancel);
+                return;
+            }
+
             _runtime.CancelWaiter(this);
         }
 
@@ -313,7 +330,7 @@ namespace Game.AssetSystem.Bundles
             // affinity, so a background Dispose is deferred instead of throwing.
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(() => _runtime.ReleaseLease(_id));
+                MainThreadPump.PostTerminal(() => _runtime.ReleaseLease(_id));
                 return;
             }
 
@@ -684,11 +701,11 @@ namespace Game.AssetSystem.Bundles
                         entry.Info.Name);
                 }
 
-                FinalizeLoadSuccess(entry, payload, dependencyLeases);
+                PostFinalizeSuccess(entry, payload, dependencyLeases);
             }
             catch (BundleLoadException exception)
             {
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     exception.Code,
                     exception.Message,
@@ -696,12 +713,41 @@ namespace Game.AssetSystem.Bundles
             }
             catch (Exception exception)
             {
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     BundleLoadErrorCode.LoadFailed,
                     exception.GetType().Name + ": " + exception.Message,
                     dependencyLeases);
             }
+        }
+
+        /// <summary>
+        /// Same reasoning as the asset layer: the await above resumes on the
+        /// captured context, while <see cref="CancelWaiter"/> runs inline on
+        /// the main thread. Routing the state change through the pump keeps
+        /// both sides of the race in one ordering domain.
+        /// </summary>
+        private void PostFinalizeSuccess(
+            BundleEntry entry,
+            IBundlePayload payload,
+            List<BundleLease> dependencyLeases)
+        {
+            MainThreadPump.PostTerminal(
+                () => FinalizeLoadSuccess(entry, payload, dependencyLeases));
+        }
+
+        private void PostFinalizeFailure(
+            BundleEntry entry,
+            BundleLoadErrorCode code,
+            string message,
+            List<BundleLease> dependencyLeases)
+        {
+            MainThreadPump.PostTerminal(
+                () => FinalizeLoadFailure(
+                    entry,
+                    code,
+                    message,
+                    dependencyLeases));
         }
 
         private void FinalizeLoadSuccess(
@@ -955,6 +1001,84 @@ namespace Game.AssetSystem.Bundles
             snapshot.Entries.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
 
             return snapshot;
+        }
+
+        /// <summary>Bundles whose payload is currently resident.</summary>
+        public int LoadedPayloadCount
+        {
+            get
+            {
+                var count = 0;
+
+                foreach (var entry in _entries.Values)
+                {
+                    if (entry.Payload != null)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        /// <summary>Sum of every bundle's user reference count.</summary>
+        public int TotalUserRefs
+        {
+            get
+            {
+                var count = 0;
+
+                foreach (var entry in _entries.Values)
+                {
+                    count += entry.UserRefCount;
+                }
+
+                return count;
+            }
+        }
+
+        public int ReadyBundleCount
+        {
+            get { return CountInState(BundleRuntimeState.Ready); }
+        }
+
+        public int IdleBundleCount
+        {
+            get { return CountInState(BundleRuntimeState.Idle); }
+        }
+
+        /// <summary>Ids of every bundle currently parked in the Idle state.</summary>
+        public List<BundleId> SnapshotIdleBundleIds()
+        {
+            EnsureMainThread();
+
+            var list = new List<BundleId>();
+
+            foreach (var pair in _entries)
+            {
+                if (pair.Value.State == BundleRuntimeState.Idle)
+                {
+                    list.Add(pair.Key);
+                }
+            }
+
+            return list;
+        }
+
+        private int CountInState(BundleRuntimeState state)
+        {
+            var count = 0;
+
+            foreach (var entry in _entries.Values)
+            {
+                if (entry.State == state)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private static void EnsureMainThread()

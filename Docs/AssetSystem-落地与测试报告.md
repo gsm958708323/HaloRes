@@ -11,31 +11,31 @@
 |---|---|---|
 | 从文档提取的代码段 | 105 | 88 个唯一路径 + 17 个跨课程重复版本 |
 | 整理后的框架文件 | 71 个 `.cs` / 17,460 行 | 原 15 个课程目录共 118 个 `.cs` / 29,389 行 |
-| 汇编定义 asmdef | 4 | 1 运行时 + 1 编辑器 + 2 测试 |
+| 汇编定义 asmdef | 6 | Runtime / Simulation / Demos / Editor / 2 测试程序集 |
 | 全链路代码 | 3 | 布局契约、运行器、内容构建器 |
 | 交互演示代码 | 2 | 控制器（状态机 + UI + 3D 视口）、uGUI 构建工具 |
-| 测试用例 | 21 | EditMode 6、PlayMode 15 |
+| 测试用例 | 37 | EditMode 7、PlayMode 30 |
 
-编译结果：**0 error**；测试结果：**21/21 通过**。
+编译结果：**0 error**；测试结果：**37/37 通过**。
 
 ## 2. 目录结构（整理后：只剩一份最终版）
 
 ```
 Assets/Game/AssetSystem/
-├─ Runtime/                             asmdef: Game.AssetSystem（运行时）
-│  ├─ Core/                             MainThreadPump（唯一主线程调度器）/ MainThreadAssetTask
+├─ Runtime/                             asmdef: Game.AssetSystem（运行时，唯一真相源）
+│  ├─ Core/                             MainThreadPump（有序队列 + 预算策略）/ PumpBudget / MainThreadAssetTask
 │  ├─ Loading/                          可取消加载任务 + 共享加载注册表（3.2/3.3 最终版）
-│  ├─ Scheduling/                       优先级 + 双预算调度器（3.6）
-│  ├─ Storage/                          文件事务 / Hash 校验 / active 指针 / 启动恢复（3.4/3.5 最终版）
-│  ├─ Patch/                            下载、staging、应用（IPatchTransport 抽象）
+│  ├─ Scheduling/                       优先级 + 双预算调度器（3.6），唯一持有优先级配额的一层
+│  ├─ Storage/                          文件事务 / Hash 校验 / active 指针 / 启动恢复 / PatchStagingStore
+│  ├─ Patch/                            PatchTypes（唯一清单）/ IPatchTransport / PatchApplyController / PatchActivationService
 │  ├─ Bundles/                          BundleRuntime：引用计数 + 依赖租约 + 快照
 │  ├─ Assets/                           AssetCache：Handle / Scope / 加载任务
-│  ├─ Memory/                           AssetMemoryPolicy：预算、宽限期、回收
+│  ├─ Memory/                           AssetMemoryPolicy + AssetMemoryEvaluator：先资产后 Bundle
 │  ├─ Diagnostics/                      运行时快照
-│  ├─ Integration/                      5.1 集成层：ActiveContentContext / ContentBundleRuntime
-│  │  └─ Patch/                         Patch 激活 + 下载编排 + 模拟 CDN
+│  ├─ Content/                          ActiveContentContext：当前激活版本长什么样（只描述，不运行）
 │  ├─ Release/                          5.2 发布加固：加载门禁 / 安全点 / 版本清理 / 真实载荷
-│  └─ Demos/                            Interactive / FullChain / Lessons 场景入口 + AssetSystemHud
+│  ├─ Simulation/                       asmdef: Game.AssetSystem.Simulation（唯一一套模拟后端）
+│  └─ Demos/                            asmdef: Game.AssetSystem.Demos（场景入口，不能反向被 runtime 引用）
 ├─ Editor/                              asmdef: Game.AssetSystem.Editor
 │  ├─ Scanning/                         扫描 + 分组规则 + Key 校验
 │  ├─ Manifest/                         依赖图 + Manifest 构建
@@ -43,13 +43,18 @@ Assets/Game/AssetSystem/
 │  ├─ Inspector/                        构建期诊断窗口（扫描 / 依赖图 / 构建校验）
 │  └─ SampleContent/                    测试与 demo 用的示例资源生成器
 ├─ Tests/
-│  ├─ Editor/                           6 个 EditMode 用例
-│  └─ PlayMode/                         23 个 PlayMode 用例 + Support/ 测试替身
+│  ├─ Editor/                           7 个 EditMode 用例
+│  └─ PlayMode/                         30 个 PlayMode 用例 + Support/ 测试数据
 └─ Lesson4xSample/                      测试生成的示例资源（非代码）
 ```
 
+程序集边界：`Game.AssetSystem` ← `Game.AssetSystem.Simulation` ← `Game.AssetSystem.Demos`，
+`Game.AssetSystem.Editor` 依赖前两者。demo 代码漏进 runtime、或 runtime 反向依赖替身，
+现在都是编译错误，不再靠人盯。
+
 命名空间不再带课程后缀：`Game.AssetSystem.Loading`、`Game.AssetSystem.Bundles`、
-`Game.AssetSystem.Integration`、`Game.AssetSystem.Release`、`Game.AssetSystem.Editor.Building` ……
+`Game.AssetSystem.Content`、`Game.AssetSystem.Patch`、`Game.AssetSystem.Release`、
+`Game.AssetSystem.Editor.Building` ……
 
 ## 3. 从 15 份课程快照合并成一份
 
@@ -487,3 +492,63 @@ GameAssetSystemBuild/FullFeature/<平台>/{v1,v2,v3}/
 - 文档自身存在 7 类缺陷（含 2 类跨版本运行时缺陷），已修复并记录；
 - 外部审查的 8 条高优先级问题在当前代码上全部成立，已全部修复；8 条中优先级中 5 条已修、1 条不适用、2 条部分修复（见第 10 节）；
 - 剩余缺口在 8.2 中列明，其中 4.7 的拒绝路径已补上直接断言，`SafePointGate` 与 3.5 Range 回退仍待补。
+
+## 12. 去重与不变量收敛（第二轮）
+
+第一轮把 15 份课程快照合并成一份，但**同一份能力仍在不同目录里各有一份实现**。第二轮按"先定义不变量、再决定留哪份"的顺序收敛。
+
+### 12.1 收敛前的重复清单
+
+| 重复物 | 位置 A | 位置 B | 差异 |
+|---|---|---|---|
+| BundleRuntime | `Bundles/BundleRuntime.cs` | `Integration/ContentBundleRuntime.cs` | A 有环检测/策略/诊断，B 有计数器；互不包含 |
+| AssetCache | `Assets/AssetRuntime.cs` | `Integration/AssetCache.cs` | A 走 catalog+策略，B 走 ActiveContentContext |
+| PatchStagingStore | `Patch/` | `Integration/Patch/` | 根目录、meta 字段、路径校验器都不同 |
+| PatchManifest | `Patch/PatchTypes.cs` | `Integration/Patch/PatchTypes.cs` | 小写+`url` vs Pascal+`PlatformKey/Assets/Dependencies` |
+| 值类型 | `Integration/Types.cs` | `Assets/` `Bundles/` | `AssetKey`/`BundleId`/`AssetLoadResult` 各两份 |
+| 传输抽象 | `Patch/IPatchTransport.cs` | `Integration/Patch/IContentTransport` | 后者把 `SimulatedCdnServer` 写进了接口签名 |
+| 激活 | `AssetFileStore.ActivateVersion` | `PatchActivationService` | 两条路径，一条只换指针 |
+| 优先级策略 | `MainThreadPump` 三档轮转 | `AssetLoadScheduler` 连续配额 | 同一规则写两遍，规则不同 |
+| 模拟后端 | Lessons / Tests / Integration 各一份 | — | 3 份 CDN + 2 份 BundleLoader，几乎逐字相同 |
+
+### 12.2 处理结果
+
+| 动作 | 内容 |
+|---|---|
+| 保留 | `Bundles` + `Assets` 作为唯一运行时；`Integration` 目录整体删除 |
+| 降级 | `ActiveContentContext` 只描述内容，通过 `CreateBundleCatalog()` / `CreateAssetCatalog()` 投影给运行时 |
+| 合并 | Patch 清单/结果/进度合成一套（`PatchTypes.cs`，Pascal + `Url` + 依赖） |
+| 合并 | staging 移到 `Storage/`，schema 升到 2（旧 meta 读到即作废重下，无需迁移） |
+| 统一 | 传输只留 `IPatchTransport`；模拟 CDN 只留 `Simulation/SimulatedPatchTransport` |
+| 统一 | 激活只留 `PatchActivationService`；`PatchApplyController` 增加 `activateAfterApply`，默认不再自己换指针 |
+| 新增 | `PumpBudget` 策略对象；`PostTerminal` 统一终态序域 |
+| 新增 | `Simulation` 程序集：一套可参数化的替身（延迟/忽略取消/失败点/Range/传输预算） |
+
+### 12.3 不变量与对应断言
+
+| 不变量 | 断言位置 |
+|---|---|
+| 同一 Bundle 组同时只有一次加载在飞 | `L44_SharedBundleRefCountAndDependencyLeases`、`FullChain` 阶段 B |
+| 卸载顺序 payload → 依赖租约、Asset → Bundle | `L46` / 全链路回收断言 |
+| 激活是原子操作：平台/句柄/安全点全过才换 | `ActivationGuardTests`、`FullChain` 阶段 D/E/F |
+| 同优先级 FIFO、高优先级先出 | `PumpOrderingTests.Pump_SamePriority_KeepsEnqueueOrder` / `Pump_HighDrainsBeforeNormal_EvenWhenPostedLater` |
+| Low 预留按槽位计数，不依赖队列占用 | `PumpOrderingTests.Pump_LowReserveIsCounted_NotCursorBased` |
+| 取消与完成同序域，胜负由入队顺序决定 | `PumpOrderingTests.Pump_TerminalTransitions_ShareOneQueueSoPostOrderWins` |
+| 单次动作超预算必须被记录，不能静默 | `PumpOrderingTests.Pump_ReportsSingleActionThatBlowsTheBudget` |
+
+### 12.4 行为变化（有意为之）
+
+- **Pump 不再是轮转**：优先级从"占 1/3 槽位"变成"严格先出"，低优先级靠 `LowReserveEvery` 防饿死。原先"后入队的高优先级越过先入队的低优先级"由相位决定，现在由写明的规则决定。
+- **终态统一 High**：完成/取消/释放走同一队列，取消不再可能被完成"插队"。
+- **完成回调经 pump**：`RunLoadAsync` 的 finalize 不再直接跑在同步上下文续体上，而是 Post 回 pump，因此与取消同序域；代价是完成晚一帧生效。
+- **激活默认不再由 apply 管线换指针**：`PatchApplyController` 默认 `activateAfterApply: false` 的调用方必须自己调 `PatchActivationService`。
+- **程序集改名**：`DemoGraphNode` 等演示类型移入 `Game.AssetSystem.Demos`。AssetBundle 记录的是程序集名，**旧产物必须重建**，否则报 "referenced script is missing"。
+
+### 12.5 验证
+
+| 项 | 结果 |
+|---|---|
+| 编译 | 0 error |
+| EditMode | 7/7 通过 |
+| PlayMode | 30/30 通过（新增 6 条 Pump 顺序/预算用例） |
+| 演示内容 | 重新执行 `Build Full-Chain Demo Content` 与 `Build Full-Feature Demo Content` 后通过 |

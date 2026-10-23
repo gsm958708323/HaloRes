@@ -2,7 +2,8 @@
     "name": "Game.AssetSystem.Editor",
     "rootNamespace": "Game.AssetSystem.Editor",
     "references": [
-        "Game.AssetSystem"
+        "Game.AssetSystem",
+        "Game.AssetSystem.Demos"
     ],
     "includePlatforms": [
         "Editor"

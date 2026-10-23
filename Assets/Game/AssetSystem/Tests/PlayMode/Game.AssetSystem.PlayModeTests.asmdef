@@ -3,6 +3,8 @@
     "rootNamespace": "Game.AssetSystem.Tests",
     "references": [
         "Game.AssetSystem",
+        "Game.AssetSystem.Demos",
+        "Game.AssetSystem.Simulation",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

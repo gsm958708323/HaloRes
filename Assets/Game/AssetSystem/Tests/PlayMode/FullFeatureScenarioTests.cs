@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using Game.AssetSystem.Demos.FullFeature;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;

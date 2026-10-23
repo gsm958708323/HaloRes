@@ -4,8 +4,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Content;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Diagnostics;
+using Game.AssetSystem.Memory;
+using Game.AssetSystem.Patch;
+using Game.AssetSystem.Simulation;
+using Game.AssetSystem.Storage;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -89,24 +96,30 @@ namespace Game.AssetSystem.Demos.Lessons
 
             // B: download v2, interrupted at 70%.
             var v2Cdn = new SimulatedCdnServer();
-            v2Cdn.Put("bundle_core", v2Bytes);
+            v2Cdn.AddFile("bundle_core", v2Bytes);
 
             var v2Manifest = BuildSingleBundleManifest(
                 "v2", "bundle_core", v2Bytes.Length, v2Hash);
 
-            var staging1 = new PatchStagingStore(stagingRoot);
-            var download1 = new PatchDownloadService(staging1, contentRoot);
-            var transport1 = new SimulatedContentTransport
-            {
-                ServerSupportsRange = true,
-                FailAfterBytesThisAttempt = (int)(v2Bytes.Length * 0.7)
-            };
+            // AssetFileStore appends /content itself.
+            var fileStore = new AssetFileStore(root);
+            fileStore.EnsureDirectories();
 
-            var firstDownload = await download1.ApplyAsync(
-                v2Manifest,
-                v2Cdn,
-                transport1,
-                cancellationToken);
+            var staging1 = new PatchStagingStore(stagingRoot);
+
+            v2Cdn.SupportsRange = true;
+            v2Cdn.FailAfterBytesThisAttempt = (int)(v2Bytes.Length * 0.7);
+
+            // maxAttemptsPerBundle = 1 so the interruption leaves a .part on
+            // disk instead of being retried away; activateAfterApply = false so
+            // PatchActivationService stays the only activation decision.
+            var firstDownload = await new PatchApplyController(
+                    fileStore,
+                    staging1,
+                    new SimulatedPatchTransport(v2Cdn),
+                    1,
+                    false)
+                .ApplyAsync(v2Manifest, null, cancellationToken);
 
             LogApply("B-DownloadInterrupted", firstDownload);
 
@@ -123,18 +136,17 @@ namespace Game.AssetSystem.Demos.Lessons
             // Simulated process kill: drop the service / staging / transport but
             // keep the staging bytes on disk, then resume.
             var staging2 = new PatchStagingStore(stagingRoot);
-            var download2 = new PatchDownloadService(staging2, contentRoot);
-            var transport2 = new SimulatedContentTransport
-            {
-                ServerSupportsRange = true,
-                FailAfterBytesThisAttempt = -1
-            };
 
-            var resumeDownload = await download2.ApplyAsync(
-                v2Manifest,
-                v2Cdn,
-                transport2,
-                cancellationToken);
+            v2Cdn.SupportsRange = true;
+            v2Cdn.FailAfterBytesThisAttempt = -1;
+
+            var resumeDownload = await new PatchApplyController(
+                    new AssetFileStore(root),
+                    staging2,
+                    new SimulatedPatchTransport(v2Cdn),
+                    3,
+                    false)
+                .ApplyAsync(v2Manifest, null, cancellationToken);
 
             LogApply("C-ResumeDownload", resumeDownload);
 
@@ -337,15 +349,28 @@ namespace Game.AssetSystem.Demos.Lessons
 
         private static RuntimeSession CreateRuntime(
             ActiveContentContext context,
-            IBundlePayloadFactory factory)
+            IBundleLoader factory)
         {
             var session = new RuntimeSession
             {
                 SessionId = ++_sessionSeq
             };
 
-            session.Bundles = new BundleRuntime(context, factory);
-            session.Cache = new AssetCache(context, session.Bundles);
+            var policy = new AssetMemoryPolicy();
+            var diagnostics = new AssetRuntimeDiagnostics();
+
+            session.Bundles = new BundleRuntime(
+                context.CreateBundleCatalog(),
+                factory,
+                policy,
+                diagnostics);
+
+            session.Cache = new AssetCache(
+                context.CreateAssetCatalog(),
+                session.Bundles,
+                policy,
+                diagnostics);
+
             session.Evaluator = new AssetMemoryEvaluator(
                 session.Cache,
                 session.Bundles);
@@ -387,6 +412,7 @@ namespace Game.AssetSystem.Demos.Lessons
                     {
                         BundleGroupName = bundleFileName,
                         FileName = bundleFileName,
+                        Url = bundleFileName,
                         SizeBytes = sizeBytes,
                         Sha256Hex = sha256
                     }

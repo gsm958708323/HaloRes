@@ -12,6 +12,7 @@ using Core = Game.AssetSystem.Core;
 using Loading = Game.AssetSystem.Loading;
 using Scheduling = Game.AssetSystem.Scheduling;
 using Support = Game.AssetSystem.Tests.Support;
+using Simulation = Game.AssetSystem.Simulation;
 
 using Game.AssetSystem.Core;
 
@@ -72,7 +73,7 @@ namespace Game.AssetSystem.Tests
         [UnityTest]
         public IEnumerator L32_OneWaiterCanceled_OtherWaiterStillSucceeds()
         {
-            var backend = new Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
+            var backend = new Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
                 120,
                 () => new Support.SimulatedAsset("Fx.Hit.Scenario1"));
 
@@ -132,7 +133,7 @@ namespace Game.AssetSystem.Tests
         [UnityTest]
         public IEnumerator L32_AllWaitersCanceled_LateSuccessIsAbandoned()
         {
-            var backend = new Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
+            var backend = new Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
                 120,
                 () => new Support.SimulatedAsset("Fx.Hit.Late"));
 
@@ -178,12 +179,12 @@ namespace Game.AssetSystem.Tests
         [UnityTest]
         public IEnumerator L33_TwoWaitersReuseOneOperation()
         {
-            var backends = new List<Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>>();
+            var backends = new List<Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>>();
 
             var registry = new Loading.SharedLoadRegistry<Support.SimulatedAsset>(
                 key =>
                 {
-                    var backend = new Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
+                    var backend = new Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
                         120,
                         () => new Support.SimulatedAsset(key + ".payload"));
                     backends.Add(backend);
@@ -221,12 +222,12 @@ namespace Game.AssetSystem.Tests
         [UnityTest]
         public IEnumerator L33_LastWaiterCanceled_NextLoadCreatesNewOperation()
         {
-            var backends = new List<Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>>();
+            var backends = new List<Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>>();
 
             var registry = new Loading.SharedLoadRegistry<Support.SimulatedAsset>(
                 key =>
                 {
-                    var backend = new Support.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
+                    var backend = new Simulation.SimulatedAssetLoadBackend<Support.SimulatedAsset>(
                         120,
                         () => new Support.SimulatedAsset(key + ".payload"));
                     backends.Add(backend);
@@ -467,7 +468,7 @@ namespace Game.AssetSystem.Tests
                     }
                 });
 
-            var loader = new Support.SimulatedBundleLoader(80);
+            var loader = new Simulation.SimulatedBundleLoader(80);
             var runtime = new Bundles.BundleRuntime(catalog, loader);
 
             var first = runtime.AcquireAsync(shop, "UI.Shop.1");
@@ -539,7 +540,7 @@ namespace Game.AssetSystem.Tests
                     }
                 });
 
-            var loader = new Support.SimulatedBundleLoader(120);
+            var loader = new Simulation.SimulatedBundleLoader(120);
             var runtime = new Bundles.BundleRuntime(catalog, loader);
 
             var keep = runtime.AcquireAsync(fx, "Battle.Scene");
@@ -586,7 +587,7 @@ namespace Game.AssetSystem.Tests
                     }
                 });
 
-            var loader = new Support.SimulatedBundleLoader(20);
+            var loader = new Simulation.SimulatedBundleLoader(20);
             var runtime = new Bundles.BundleRuntime(catalog, loader);
 
             LogAssert.Expect(

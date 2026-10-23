@@ -6,6 +6,7 @@ using Game.AssetSystem.Bundles;
 using Game.AssetSystem.Core;
 using Game.AssetSystem.Diagnostics;
 using Game.AssetSystem.Memory;
+using Game.AssetSystem.Simulation;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -60,7 +61,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
             var policy = new AssetMemoryPolicy();
             var diagnostics = new AssetRuntimeDiagnostics();
-            var bundleLoader = new LessonBundleLoader(150);
+            var bundleLoader = new SimulatedBundleLoader(150);
 
             var bundleRuntime = new BundleRuntime(
                 bundleCatalog,
@@ -118,7 +119,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
         private static async Task RunConcurrentCancelScenario(
             AssetService assetService,
-            LessonBundleLoader bundleLoader,
+            SimulatedBundleLoader bundleLoader,
             BundleId bundleId,
             AssetKey key,
             string internalPath,
@@ -171,7 +172,7 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunMultipleScopeScenario(
             AssetService assetService,
             AssetCache assetCache,
-            LessonBundleLoader bundleLoader,
+            SimulatedBundleLoader bundleLoader,
             BundleId bundleId,
             AssetKey key,
             string internalPath,
@@ -222,7 +223,7 @@ namespace Game.AssetSystem.Demos.Lessons
         private static async Task RunScopeDisposedBeforeCompletionScenario(
             AssetService assetService,
             AssetCache assetCache,
-            LessonBundleLoader bundleLoader,
+            SimulatedBundleLoader bundleLoader,
             BundleId bundleId,
             AssetKey key,
             string internalPath,

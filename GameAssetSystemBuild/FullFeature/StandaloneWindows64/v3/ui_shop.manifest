@@ -1,13 +1,13 @@
 ManifestFileVersion: 0
 UnityVersion: 6000.0.32f1
-CRC: 3666748117
+CRC: 1512678868
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: e4fb75d1e8d5efbd1a472d23ab5a28f6
+    Hash: 98cd22adfa9c6abddff1ff883093d7b4
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 202030a57eaddba0c66994b895df6d72
+    Hash: cd7d87068f3f4cb6bc9775f51ca43cf8
   IncrementalBuildHash:
     serializedVersion: 2
     Hash: e5f0b4db7c4d813854c7bfdfcf8a1db9
@@ -23,4 +23,4 @@ SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/Game/AssetSystem/FullFeatureSample/v3/UI/Panel.asset
 Dependencies:
-- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-39f82e50375c4295a880289aa218f60b/v3/shared
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-fe1f0ce7c28047b1bb0d55408b8ad0d0/v3/shared

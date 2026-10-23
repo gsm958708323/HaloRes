@@ -6,6 +6,7 @@ using Game.AssetSystem.Bundles;
 using Game.AssetSystem.Core;
 using Game.AssetSystem.Diagnostics;
 using Game.AssetSystem.Memory;
+using Game.AssetSystem.Simulation;
 using UnityEngine;
 
 namespace Game.AssetSystem.Demos.Lessons
@@ -35,7 +36,7 @@ namespace Game.AssetSystem.Demos.Lessons
 
             var policy = new AssetMemoryPolicy();
             var diagnostics = new AssetRuntimeDiagnostics();
-            var loader = new LessonBundleLoader(80);
+            var loader = new SimulatedBundleLoader(80);
 
             var bundleCatalog = new BundleCatalog(
                 new[]
@@ -127,7 +128,7 @@ namespace Game.AssetSystem.Demos.Lessons
             AssetService assetService,
             AssetMemoryPolicy policy,
             AssetRuntimeDiagnostics diagnostics,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId bundleId,
             CancellationToken cancellationToken)
         {
@@ -163,7 +164,7 @@ namespace Game.AssetSystem.Demos.Lessons
             AssetService assetService,
             AssetMemoryPolicy policy,
             AssetRuntimeDiagnostics diagnostics,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId bundleId,
             CancellationToken cancellationToken)
         {
@@ -193,7 +194,7 @@ namespace Game.AssetSystem.Demos.Lessons
             AssetCache assetCache,
             AssetMemoryPolicy policy,
             AssetRuntimeDiagnostics diagnostics,
-            LessonBundleLoader loader,
+            SimulatedBundleLoader loader,
             BundleId bundleId,
             CancellationToken cancellationToken)
         {

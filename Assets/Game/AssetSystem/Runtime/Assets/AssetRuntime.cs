@@ -194,7 +194,7 @@ namespace Game.AssetSystem.Assets
 
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(Cancel);
+                MainThreadPump.PostTerminal(Cancel);
                 return;
             }
 
@@ -216,7 +216,7 @@ namespace Game.AssetSystem.Assets
 
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(() =>
+                MainThreadPump.PostTerminal(() =>
                 {
                     if (!IsDone)
                     {
@@ -269,6 +269,15 @@ namespace Game.AssetSystem.Assets
         }
 
         public Task<AssetLoadResult<T>> CompletionTask
+        {
+            get { return _completion.Task; }
+        }
+
+        /// <summary>
+        /// Alias for <see cref="CompletionTask"/>, kept because the removed
+        /// integration-layer cache exposed the shorter name.
+        /// </summary>
+        public Task<AssetLoadResult<T>> Completion
         {
             get { return _completion.Task; }
         }
@@ -409,7 +418,7 @@ namespace Game.AssetSystem.Assets
                 }
 
                 _disposePosted = true;
-                MainThreadPump.Post(Dispose);
+                MainThreadPump.PostTerminal(Dispose);
                 return;
             }
 
@@ -486,7 +495,7 @@ namespace Game.AssetSystem.Assets
 
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(Dispose);
+                MainThreadPump.PostTerminal(Dispose);
                 return;
             }
 
@@ -576,6 +585,9 @@ namespace Game.AssetSystem.Assets
         private readonly BundleRuntime _bundleRuntime;
         private readonly AssetMemoryPolicy _policy;
         private readonly AssetRuntimeDiagnostics _diagnostics;
+        private readonly AssetCatalog _catalog;
+
+        private int _liveHandles;
 
         public AssetCache(
             BundleRuntime bundleRuntime,
@@ -590,14 +602,136 @@ namespace Game.AssetSystem.Assets
                          throw new ArgumentNullException(nameof(diagnostics));
         }
 
+        /// <summary>
+        /// Catalog-aware constructor. With a catalog the cache can resolve an
+        /// <see cref="AssetKey"/> itself, which is what the integration layer
+        /// used to get from <c>ActiveContentContext</c> through a second,
+        /// parallel cache implementation.
+        /// </summary>
+        public AssetCache(
+            AssetCatalog catalog,
+            BundleRuntime bundleRuntime,
+            AssetMemoryPolicy policy,
+            AssetRuntimeDiagnostics diagnostics)
+            : this(bundleRuntime, policy, diagnostics)
+        {
+            _catalog = catalog ??
+                       throw new ArgumentNullException(nameof(catalog));
+        }
+
         public AssetRuntimeDiagnostics Diagnostics
         {
             get { return _diagnostics; }
         }
 
+        /// <summary>
+        /// Handles handed out and not yet disposed. The activation guard needs
+        /// this number, and so does the release dashboard.
+        /// </summary>
+        public int TotalLiveHandles
+        {
+            get { return _liveHandles; }
+        }
+
+        public int ReadyAssetCount
+        {
+            get { return CountInState(AssetRuntimeState.Ready); }
+        }
+
+        public int IdleAssetCount
+        {
+            get { return CountInState(AssetRuntimeState.Idle); }
+        }
+
+        public int LoadingAssetCount
+        {
+            get { return CountInState(AssetRuntimeState.Loading); }
+        }
+
+        public AssetScope CreateScope(string name)
+        {
+            EnsureMainThread();
+            return new AssetScope(name);
+        }
+
+        /// <summary>
+        /// Catalog-backed acquire. Equivalent to looking the key up in the
+        /// catalog and calling the <see cref="AssetEntry"/> overload.
+        /// </summary>
+        public AssetLoadTask<T> AcquireAsync<T>(
+            AssetKey key,
+            AssetScope scope,
+            string owner = "Unnamed")
+            where T : class
+        {
+            EnsureMainThread();
+
+            if (scope == null)
+            {
+                throw new ArgumentNullException(nameof(scope));
+            }
+
+            if (_catalog == null)
+            {
+                throw new InvalidOperationException(
+                    "This AssetCache was created without an AssetCatalog. " +
+                    "Use the AcquireAsync(AssetEntry, ...) overload.");
+            }
+
+            if (!_catalog.TryGet(key, out var entry))
+            {
+                return CreateFailedTask<T>(
+                    key,
+                    scope,
+                    owner,
+                    AssetLoadErrorCode.KeyNotFound,
+                    "AssetKey not found: " + key.Value);
+            }
+
+            return AcquireAsync<T>(entry, scope, owner);
+        }
+
+        /// <summary>Keys of every asset currently parked in the Idle state.</summary>
+        public List<AssetKey> SnapshotIdleAssetKeys()
+        {
+            EnsureMainThread();
+
+            var list = new List<AssetKey>();
+
+            foreach (var pair in _entries)
+            {
+                if (pair.Value.State == AssetRuntimeState.Idle)
+                {
+                    list.Add(pair.Key);
+                }
+            }
+
+            return list;
+        }
+
+        private int CountInState(AssetRuntimeState state)
+        {
+            var count = 0;
+
+            foreach (var entry in _entries.Values)
+            {
+                if (entry.State == state)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         internal void ReleaseAsset(AssetKey key)
         {
             EnsureMainThread();
+
+            if (_liveHandles > 0)
+            {
+                _liveHandles--;
+            }
 
             if (!_entries.TryGetValue(key, out var entry))
             {
@@ -854,6 +988,7 @@ namespace Game.AssetSystem.Assets
             }
 
             entry.UserRefCount++;
+            _liveHandles++;
 
             if (entry.State == AssetRuntimeState.Idle)
             {
@@ -890,7 +1025,7 @@ namespace Game.AssetSystem.Assets
             }
             catch (Exception exception)
             {
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     AssetLoadErrorCode.InternalError,
                     exception.GetType().Name + ": " + exception.Message);
@@ -899,7 +1034,7 @@ namespace Game.AssetSystem.Assets
 
             if (!bundleResult.Success)
             {
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     AssetLoadErrorCode.BundleLoadFailed,
                     bundleResult.Error.ToString());
@@ -917,7 +1052,7 @@ namespace Game.AssetSystem.Assets
             {
                 bundleResult.Lease.Dispose();
 
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     AssetLoadErrorCode.AssetLoadFailed,
                     exception.GetType().Name + ": " + exception.Message);
@@ -929,7 +1064,7 @@ namespace Game.AssetSystem.Assets
             {
                 bundleResult.Lease.Dispose();
 
-                FinalizeLoadFailure(
+                PostFinalizeFailure(
                     entry,
                     AssetLoadErrorCode.AssetLoadFailed,
                     "Asset payload is null. key=" +
@@ -938,10 +1073,31 @@ namespace Game.AssetSystem.Assets
                 return;
             }
 
-            FinalizeLoadSuccess(
-                entry,
-                payload,
-                bundleResult.Lease);
+            PostFinalizeSuccess(entry, payload, bundleResult.Lease);
+        }
+
+        /// <summary>
+        /// The await above resumes on whichever context it captured, which is
+        /// not the same queue the cancellation path uses. Posting the state
+        /// change through the pump puts completion and cancellation in one
+        /// ordering domain, so the winner is decided by enqueue order.
+        /// </summary>
+        private void PostFinalizeSuccess(
+            CacheEntry entry,
+            object payload,
+            BundleLease bundleLease)
+        {
+            MainThreadPump.PostTerminal(
+                () => FinalizeLoadSuccess(entry, payload, bundleLease));
+        }
+
+        private void PostFinalizeFailure(
+            CacheEntry entry,
+            AssetLoadErrorCode code,
+            string message)
+        {
+            MainThreadPump.PostTerminal(
+                () => FinalizeLoadFailure(entry, code, message));
         }
 
         private void FinalizeLoadSuccess(
@@ -983,6 +1139,7 @@ namespace Game.AssetSystem.Assets
                 }
 
                 entry.UserRefCount++;
+                _liveHandles++;
                 successCount++;
                 waiter.Scope.TrackHandle(handle);
                 waiter.CompleteSuccess(handle);

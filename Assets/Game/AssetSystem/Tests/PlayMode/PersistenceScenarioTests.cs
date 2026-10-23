@@ -10,6 +10,7 @@ using UnityEngine.TestTools;
 using Patch = Game.AssetSystem.Patch;
 using Storage = Game.AssetSystem.Storage;
 using Support = Game.AssetSystem.Tests.Support;
+using Simulation = Game.AssetSystem.Simulation;
 
 namespace Game.AssetSystem.Tests
 {
@@ -204,7 +205,7 @@ namespace Game.AssetSystem.Tests
             var store = new Storage.AssetFileStore(_root);
             store.EnsureDirectories();
 
-            var staging = new Patch.PatchStagingStore(
+            var staging = new Storage.PatchStagingStore(
                 Path.Combine(_root, "staging"));
 
             var payload = Encoding.UTF8.GetBytes(new string('b', 8192));
@@ -214,21 +215,22 @@ namespace Game.AssetSystem.Tests
 
             var manifest = new Patch.PatchManifest
             {
-                schemaVersion = 1,
-                contentVersion = version,
-                bundles = new[]
+                SchemaVersion = 1,
+                ContentVersion = version,
+                Bundles = new[]
                 {
                     new Patch.PatchBundleDescriptor
                     {
-                        bundleFileName = "bundle_fx",
-                        url = url,
-                        sizeBytes = payload.Length,
-                        sha256Hex = hash
+                        BundleGroupName = "fx",
+                        FileName = "bundle_fx",
+                        Url = url,
+                        SizeBytes = payload.Length,
+                        Sha256Hex = hash
                     }
                 }
             };
 
-            var server = new Support.SimulatedPatchServer();
+            var server = new Simulation.SimulatedCdnServer();
             server.AddFile(url, payload);
             server.SupportsRange = true;
             server.FailAfterBytesThisAttempt = 4096;
@@ -236,7 +238,7 @@ namespace Game.AssetSystem.Tests
             var firstController = new Patch.PatchApplyController(
                 store,
                 staging,
-                new Support.SimulatedPatchTransport(server),
+                new Simulation.SimulatedPatchTransport(server),
                 1);
 
             var first = firstController.ApplyAsync(
@@ -259,7 +261,7 @@ namespace Game.AssetSystem.Tests
             var partBytes = new FileInfo(partPath).Length;
 
             // 模拟进程重启：丢弃控制器与 staging 对象，只保留磁盘内容
-            var restartedStaging = new Patch.PatchStagingStore(
+            var restartedStaging = new Storage.PatchStagingStore(
                 Path.Combine(_root, "staging"));
 
             server.FailAfterBytesThisAttempt = -1;
@@ -267,7 +269,7 @@ namespace Game.AssetSystem.Tests
             var secondController = new Patch.PatchApplyController(
                 store,
                 restartedStaging,
-                new Support.SimulatedPatchTransport(server),
+                new Simulation.SimulatedPatchTransport(server),
                 3);
 
             var second = secondController.ApplyAsync(

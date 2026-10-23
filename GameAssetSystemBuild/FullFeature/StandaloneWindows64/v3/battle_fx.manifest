@@ -1,13 +1,13 @@
 ManifestFileVersion: 0
 UnityVersion: 6000.0.32f1
-CRC: 1844409731
+CRC: 1040489107
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: ddcf34ba7caec2e3857d1318ab392d0f
+    Hash: 1cc8e7068d90f34f45387b987da7de31
   TypeTreeHash:
     serializedVersion: 2
-    Hash: 202030a57eaddba0c66994b895df6d72
+    Hash: cd7d87068f3f4cb6bc9775f51ca43cf8
   IncrementalBuildHash:
     serializedVersion: 2
     Hash: 21c7e6ac348688b0eb023573acbdc113
@@ -23,4 +23,4 @@ SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/Game/AssetSystem/FullFeatureSample/v3/Fx/Hit.asset
 Dependencies:
-- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-39f82e50375c4295a880289aa218f60b/v3/shared
+- D:/Work/Blog/HaloRes2/GameAssetSystemBuild/FullFeature/StandaloneWindows64/.building-fe1f0ce7c28047b1bb0d55408b8ad0d0/v3/shared

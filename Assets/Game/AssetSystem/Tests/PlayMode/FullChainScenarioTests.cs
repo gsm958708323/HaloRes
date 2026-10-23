@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Threading.Tasks;
 using Game.AssetSystem.FullChain;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
 using NUnit.Framework;
 using UnityEngine.TestTools;
 

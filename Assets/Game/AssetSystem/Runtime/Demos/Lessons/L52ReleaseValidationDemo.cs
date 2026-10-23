@@ -3,8 +3,13 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Content;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Diagnostics;
+using Game.AssetSystem.Patch;
+using Game.AssetSystem.Memory;
 using Game.AssetSystem.Release;
 using UnityEngine;
 
@@ -77,7 +82,7 @@ namespace Game.AssetSystem.Demos.Lessons
             Debug.Log("[Scenario1] AssetLoadGate budget with a simulated backend");
 
             var simulated = new LessonContentPayloadFactory(40);
-            var gated = new GatedBundlePayloadFactory(simulated, _gate);
+            var gated = new GatedBundleLoader(simulated, _gate);
 
             var emptyContext = new ActiveContentContext(
                 "gate-demo",
@@ -94,7 +99,11 @@ namespace Game.AssetSystem.Demos.Lessons
                     new RuntimeBundle(new BundleId(5), "b5", "b5", "/tmp/b5", 0, "")
                 });
 
-            var bundles = new BundleRuntime(emptyContext, gated);
+            var bundles = new BundleRuntime(
+                emptyContext.CreateBundleCatalog(),
+                gated,
+                new AssetMemoryPolicy(),
+                new AssetRuntimeDiagnostics());
 
             var tasks = new Task<BundleAcquireResult>[6];
 
@@ -102,7 +111,7 @@ namespace Game.AssetSystem.Demos.Lessons
             {
                 tasks[i] = bundles.AcquireAsync(
                     new BundleId(i),
-                    "S1." + i);
+                    "S1." + i).CompletionTask;
             }
 
             Debug.Log(
@@ -129,7 +138,11 @@ namespace Game.AssetSystem.Demos.Lessons
                 " lastFrameStarts=" + _gate.LastFrameStarts);
 
             var reclaimReport = new AssetMemoryEvaluator(
-                new AssetCache(emptyContext, bundles),
+                new AssetCache(
+                    emptyContext.CreateAssetCatalog(),
+                    bundles,
+                    new AssetMemoryPolicy(),
+                    new AssetRuntimeDiagnostics()),
                 bundles).Evaluate();
 
             Debug.Log("[Scenario1] reclaim=" + reclaimReport);
@@ -156,9 +169,23 @@ namespace Game.AssetSystem.Demos.Lessons
                 });
 
             var factory = new LessonContentPayloadFactory(20);
-            var gated = new GatedBundlePayloadFactory(factory, _gate);
-            var bundles = new BundleRuntime(context, gated);
-            var cache = new AssetCache(context, bundles);
+            var gated = new GatedBundleLoader(factory, _gate);
+
+            var policy = new AssetMemoryPolicy();
+            var diagnostics = new AssetRuntimeDiagnostics();
+
+            var bundles = new BundleRuntime(
+                context.CreateBundleCatalog(),
+                gated,
+                policy,
+                diagnostics);
+
+            var cache = new AssetCache(
+                context.CreateAssetCatalog(),
+                bundles,
+                policy,
+                diagnostics);
+
             var scope = cache.CreateScope("SafePointDemo");
 
             var loadResult = await cache.AcquireAsync<LessonAssetPayload>(

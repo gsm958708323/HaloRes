@@ -294,21 +294,18 @@ namespace Game.AssetSystem.Scheduling
                     .ExecuteAsync(task.CancellationToken)
                     .ConfigureAwait(false);
 
-                MainThreadPump.Post(
-                    () => OnWorkerCompleted(task, result),
-                    PumpPriority.High);
+                MainThreadPump.PostTerminal(
+                    () => OnWorkerCompleted(task, result));
             }
             catch (OperationCanceledException)
             {
-                MainThreadPump.Post(
-                    () => OnWorkerCanceled(task),
-                    PumpPriority.High);
+                MainThreadPump.PostTerminal(
+                    () => OnWorkerCanceled(task));
             }
             catch (Exception exception)
             {
-                MainThreadPump.Post(
-                    () => OnWorkerFailed(task, exception.Message),
-                    PumpPriority.High);
+                MainThreadPump.PostTerminal(
+                    () => OnWorkerFailed(task, exception.Message));
             }
         }
 

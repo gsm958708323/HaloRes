@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
 using Game.AssetSystem.Core;
-using Game.AssetSystem.Integration;
 using UnityEngine;
 
 namespace Game.AssetSystem.Scheduling
@@ -69,11 +68,10 @@ namespace Game.AssetSystem.Scheduling
         {
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(
+                MainThreadPump.PostTerminal(
                     () => RequestCancel(
                         ScheduledLoadErrorCode.Canceled,
-                        "Canceled by caller"),
-                    PumpPriority.High);
+                        "Canceled by caller"));
 
                 return;
             }
@@ -87,11 +85,10 @@ namespace Game.AssetSystem.Scheduling
         {
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(
+                MainThreadPump.PostTerminal(
                     () => RequestCancel(
                         ScheduledLoadErrorCode.ScopeDisposed,
-                        "Scope disposed"),
-                    PumpPriority.High);
+                        "Scope disposed"));
 
                 return;
             }

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Bundles;
 
 using Game.AssetSystem.Core;
 

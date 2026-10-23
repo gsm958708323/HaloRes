@@ -4,8 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Game.AssetSystem.Assets;
+using Game.AssetSystem.Bundles;
+using Game.AssetSystem.Content;
+using Game.AssetSystem.Diagnostics;
 using Game.AssetSystem.FullChain;
-using Game.AssetSystem.Integration;
+using Game.AssetSystem.Patch;
+using Game.AssetSystem.Memory;
 using Game.AssetSystem.Release;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -261,8 +266,21 @@ namespace Game.AssetSystem.Demos.Interactive
             AssetBundle.UnloadAllAssetBundles(true);
 
             _factory = new CountingFactory();
-            _runtime = new BundleRuntime(_activation.ActiveContext, _factory);
-            _cache = new AssetCache(_activation.ActiveContext, _runtime);
+
+            var policy = new AssetMemoryPolicy();
+            var diagnostics = new AssetRuntimeDiagnostics();
+
+            _runtime = new BundleRuntime(
+                _activation.ActiveContext.CreateBundleCatalog(),
+                _factory,
+                policy,
+                diagnostics);
+
+            _cache = new AssetCache(
+                _activation.ActiveContext.CreateAssetCatalog(),
+                _runtime,
+                policy,
+                diagnostics);
             _evaluator = new AssetMemoryEvaluator(_cache, _runtime) { MaxUnloadsPerCall = 10 };
             _uiScope = _cache.CreateScope("UI");
             _battleScope = _cache.CreateScope("Battle");
@@ -1442,9 +1460,9 @@ namespace Game.AssetSystem.Demos.Interactive
             return Color.HSVToRGB(hue, 0.55f, 0.95f);
         }
 
-        private sealed class CountingFactory : IBundlePayloadFactory
+        private sealed class CountingFactory : IBundleLoader
         {
-            private readonly RealBundlePayloadFactory _inner = new RealBundlePayloadFactory();
+            private readonly RealBundleLoader _inner = new RealBundleLoader();
             private int _loadCount;
 
             public int LoadCount
@@ -1453,7 +1471,7 @@ namespace Game.AssetSystem.Demos.Interactive
             }
 
             public Task<IBundlePayload> LoadAsync(
-                RuntimeBundle bundle,
+                BundleInfo bundle,
                 System.Threading.CancellationToken cancellationToken)
             {
                 _loadCount++;

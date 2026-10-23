@@ -192,7 +192,7 @@ namespace Game.AssetSystem.Loading
         private void OnBackendCompleted(AssetLoadBackendResult<T> result)
         {
             // This callback can arrive on a worker thread.
-            MainThreadPump.Post(() => HandleBackendCompletedOnMain(result));
+            MainThreadPump.PostTerminal(() => HandleBackendCompletedOnMain(result));
         }
 
         private void HandleBackendCompletedOnMain(AssetLoadBackendResult<T> backendResult)

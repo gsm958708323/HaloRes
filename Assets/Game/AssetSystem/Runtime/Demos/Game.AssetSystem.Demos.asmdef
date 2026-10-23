@@ -1,0 +1,17 @@
+{
+    "name": "Game.AssetSystem.Demos",
+    "rootNamespace": "Game.AssetSystem.Demos",
+    "references": [
+        "Game.AssetSystem",
+        "Game.AssetSystem.Simulation"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

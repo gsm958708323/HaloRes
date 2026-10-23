@@ -106,7 +106,7 @@ namespace Game.AssetSystem.Loading
         {
             if (!MainThreadPump.IsMainThread)
             {
-                MainThreadPump.Post(() => Complete(result));
+                MainThreadPump.PostTerminal(() => Complete(result));
                 return;
             }
 

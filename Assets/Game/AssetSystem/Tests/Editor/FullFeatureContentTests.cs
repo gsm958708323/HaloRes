@@ -64,7 +64,7 @@ namespace Game.AssetSystem.Tests
         }
 
         private static void AssertDependsOnShared(
-            Integration.PatchBundleDescriptor bundle,
+            Patch.PatchBundleDescriptor bundle,
             string group)
         {
             Assert.IsNotNull(bundle, group + " bundle in manifest");
@@ -74,8 +74,8 @@ namespace Game.AssetSystem.Tests
             Assert.AreEqual(FullFeatureContent.SharedGroup, bundle.Dependencies[0]);
         }
 
-        private static Integration.PatchBundleDescriptor FindBundle(
-            Integration.PatchManifest manifest,
+        private static Patch.PatchBundleDescriptor FindBundle(
+            Patch.PatchManifest manifest,
             string group)
         {
             for (var i = 0; i < manifest.Bundles.Length; i++)
