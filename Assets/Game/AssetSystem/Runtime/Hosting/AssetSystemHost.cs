@@ -93,11 +93,24 @@ namespace Game.AssetSystem.Hosting
 
         private void OnDestroy()
         {
-            if (Facade != null)
+            if (Facade == null)
             {
-                Facade.ReleaseAllScopes();
-                Facade = null;
+                return;
             }
+
+            try
+            {
+                // ReleaseAllScopes alone would leave this runtime's cached
+                // payloads and AssetBundles alive after the owning scene is
+                // gone; Shutdown drains them as well.
+                Facade.Shutdown();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+
+            Facade = null;
         }
 
         /// <summary>

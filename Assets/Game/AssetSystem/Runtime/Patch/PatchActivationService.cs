@@ -19,6 +19,18 @@ namespace Game.AssetSystem.Patch
         public ActiveContentContext ActiveContext { get; private set; }
         public int ActivationCount { get; private set; }
 
+        /// <summary>
+        /// Drops the active context so the owning facade can shut down without
+        /// leaving a second, unreachable copy of the content description alive.
+        /// The service is reusable afterwards; the next activation starts from
+        /// "no active version".
+        /// </summary>
+        public void Reset()
+        {
+            ActiveContext = null;
+            ActivationCount = 0;
+        }
+
         public async Task<PatchActivationResult> ActivateAsync(
             PatchManifest manifest,
             string bundleRoot,

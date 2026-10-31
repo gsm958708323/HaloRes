@@ -203,9 +203,31 @@ namespace Game.AssetSystem.Hosting
                 return true;
             }
 
+            InitError = null;
+
             Directory.CreateDirectory(ContentRoot);
             Directory.CreateDirectory(StagingRoot);
             Directory.CreateDirectory(StateRoot);
+
+            // Cold-start repair belongs to the entry point, not only to the
+            // lesson that demonstrates it: a half-written active.json.tmp or a
+            // download temp file from a killed process otherwise survives every
+            // subsequent launch. Recovery never deletes committed content.
+            var fileStore = CreateFileStore();
+            var recovery = fileStore.RecoverOnStartup();
+
+            if (recovery.DeletedTempFileCount > 0 ||
+                recovery.DeletedStateTempFileCount > 0)
+            {
+                AppendLog("启动恢复：清理 " +
+                          recovery.DeletedTempFileCount + " 个临时文件 / " +
+                          recovery.DeletedStateTempFileCount + " 个状态临时文件");
+            }
+
+            if (!string.IsNullOrEmpty(recovery.Error.Message))
+            {
+                AppendLog("启动恢复报告：" + recovery.Error.Message);
+            }
 
             PatchManifest manifest;
             string bundleRoot;
@@ -275,7 +297,18 @@ namespace Game.AssetSystem.Hosting
             RebuildRuntime("冷启动");
 
             Ready = true;
+            InitError = null;
             return true;
+        }
+
+        private AssetFileStore CreateFileStore()
+        {
+            return new AssetFileStore(
+                _options.ClientRoot,
+                _options.ContentFolderName,
+                "temp",
+                _options.StateFolderName,
+                _options.ActiveStateFileName);
         }
 
         private ActiveContentState TryReadActiveState()
@@ -384,23 +417,75 @@ namespace Game.AssetSystem.Hosting
 
         private void PersistActiveState(PatchManifest manifest, string bundleRoot)
         {
+            var bundles = new BundleHashRecord[manifest.Bundles.Length];
+
+            for (var i = 0; i < manifest.Bundles.Length; i++)
+            {
+                var bundle = manifest.Bundles[i];
+
+                bundles[i] = new BundleHashRecord
+                {
+                    bundleFileName = bundle.FileName,
+                    sha256Hex = bundle.Sha256Hex
+                };
+            }
+
             var state = new ActiveContentState
             {
                 schemaVersion = _options.ActiveStateSchemaVersion,
                 contentVersion = manifest.ContentVersion,
+                activatedAtUtc = DateTime.UtcNow.ToString("o"),
                 bundleRoot = bundleRoot,
+                bundles = bundles,
                 manifest = manifest
             };
 
             var json = JsonUtility.ToJson(state, true);
             var tempPath = ActiveStatePath + ".tmp";
+            var backupPath = ActiveStatePath + ".bak";
 
             Directory.CreateDirectory(StateRoot);
-            File.WriteAllText(tempPath, json, new UTF8Encoding(false));
 
+            using (var stream = new FileStream(
+                tempPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None))
+            using (var writer = new StreamWriter(
+                stream,
+                new UTF8Encoding(false)))
+            {
+                writer.Write(json);
+                writer.Flush();
+                stream.Flush(true);
+            }
+
+            // Keep the previous pointer as .bak: AssetFileStore.TryLoadActiveState
+            // restores it when the new state turns out to be unreadable. Deleting
+            // the old file before the move (the previous implementation) turned a
+            // crash in this window into "no active state at all".
             if (File.Exists(ActiveStatePath))
             {
-                File.Delete(ActiveStatePath);
+                if (File.Exists(backupPath))
+                {
+                    File.Delete(backupPath);
+                }
+
+                try
+                {
+                    File.Replace(tempPath, ActiveStatePath, backupPath, true);
+                    return;
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    // Some player platforms do not implement File.Replace.
+                    // Copy-then-swap keeps the same backup contract at the
+                    // cost of one extra copy on those platforms.
+                    File.Copy(ActiveStatePath, backupPath, true);
+                    File.Delete(ActiveStatePath);
+                    File.Move(tempPath, ActiveStatePath);
+                    return;
+                }
             }
 
             File.Move(tempPath, ActiveStatePath);
@@ -415,12 +500,7 @@ namespace Game.AssetSystem.Hosting
         {
             MainThreadPump.EnsureMainThread(nameof(RebuildRuntime));
 
-            for (var i = 0; i < _scopes.Count; i++)
-            {
-                _scopes[i].Dispose();
-            }
-
-            _scopes.Clear();
+            DisposeTrackedScopes();
 
             // The old runtime is dropped whole: its idle assets still hold
             // bundle leases, so drain it first instead of reaching for
@@ -554,6 +634,12 @@ namespace Game.AssetSystem.Hosting
             EnsureReady(nameof(CreateScope));
 
             var scope = _cache.CreateScope(name);
+
+            // A caller that disposes its own scope should leave no trace in the
+            // facade. Without this hook every short-lived scope stayed in the
+            // list (and was disposed a second time by ReleaseAllScopes) until
+            // the list was cleared.
+            scope.Disposed += () => _scopes.Remove(scope);
             _scopes.Add(scope);
 
             return scope;
@@ -592,14 +678,54 @@ namespace Game.AssetSystem.Hosting
 
         public int ReleaseAllScopes()
         {
-            for (var i = 0; i < _scopes.Count; i++)
-            {
-                _scopes[i].Dispose();
-            }
-
-            _scopes.Clear();
+            DisposeTrackedScopes();
 
             return _cache == null ? 0 : _cache.TotalLiveHandles;
+        }
+
+        /// <summary>
+        /// Releases every facade-owned scope and unloads this runtime's idle
+        /// assets and bundles. Call it from <c>OnDestroy</c> when the scene that
+        /// owns the facade goes away; without this the old AssetBundles stay
+        /// loaded for the rest of the process even though nothing can reach
+        /// them. The facade is reusable afterwards: call
+        /// <see cref="InitializeAsync"/> again.
+        /// </summary>
+        public void Shutdown()
+        {
+            MainThreadPump.EnsureMainThread(nameof(Shutdown));
+
+            DisposeTrackedScopes();
+            DrainRuntime(_cache, _bundles);
+
+            _gate = null;
+            _policy = null;
+            _diagnostics = null;
+            _bundles = null;
+            _cache = null;
+            _memory = null;
+
+            _activation.Reset();
+            Ready = false;
+        }
+
+        private void DisposeTrackedScopes()
+        {
+            if (_scopes.Count == 0)
+            {
+                return;
+            }
+
+            // Disposing a scope raises Disposed, which removes it from the
+            // list; iterate over a snapshot so the list is not mutated while
+            // it is being walked.
+            var scopes = _scopes.ToArray();
+            _scopes.Clear();
+
+            for (var i = 0; i < scopes.Length; i++)
+            {
+                scopes[i].Dispose();
+            }
         }
 
         // ------------------------------------------------------------------

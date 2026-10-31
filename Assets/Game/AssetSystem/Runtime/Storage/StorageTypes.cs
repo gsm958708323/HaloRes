@@ -9,12 +9,28 @@ namespace Game.AssetSystem.Storage
         public string sha256Hex;
     }
 
+    /// <summary>
+    /// On-disk shape of <c>active.json</c>.
+    ///
+    /// Two producers write this file: the storage primitive
+    /// (<see cref="AssetFileStore.ActivateVersion"/>) and the hosting facade.
+    /// The facade also needs the bundle folder and the full manifest, so those
+    /// fields are optional here. A reader accepts a record when it has either
+    /// bundle hashes (storage-written) or a bundle root (facade-written); this
+    /// keeps both writers on one schema instead of two files that each thought
+    /// they owned <c>active.json</c>.
+    /// </summary>
     [Serializable]
     public sealed class ActiveStateRecord
     {
         public int schemaVersion;
         public string contentVersion;
         public string activatedAtUtc;
+
+        /// <summary>Folder the active version's bundles live in. Optional.</summary>
+        public string bundleRoot;
+
+        /// <summary>Hashes of the active bundles. Optional for facade-written state.</summary>
         public BundleHashRecord[] bundles;
     }
 

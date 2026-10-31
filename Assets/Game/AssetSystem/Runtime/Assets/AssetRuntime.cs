@@ -474,6 +474,14 @@ namespace Game.AssetSystem.Assets
         public string Name { get; }
         public bool IsDisposed { get; private set; }
 
+        /// <summary>
+        /// Raised once, on the main thread, after every task and handle the
+        /// scope tracked has been released. Owners that keep a scope list use
+        /// this to drop their reference instead of retaining disposed scopes
+        /// until the next bulk release.
+        /// </summary>
+        public event Action Disposed;
+
         public AssetScope(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -520,6 +528,13 @@ namespace Game.AssetSystem.Assets
             for (var i = 0; i < handles.Count; i++)
             {
                 handles[i].Dispose();
+            }
+
+            var handler = Disposed;
+
+            if (handler != null)
+            {
+                handler();
             }
         }
 

@@ -21,7 +21,19 @@ namespace Game.AssetSystem.Storage
         public string ActiveStateTempPath { get; }
         public string ActiveStateBackupPath { get; }
 
-        public AssetFileStore(string rootDirectory)
+        /// <summary>
+        /// Folder names are parameters, not constants: <c>AssetSystemOptions</c>
+        /// exposes them so a game can put content and state side by side, and a
+        /// store that hard-coded "content"/"state" would silently write to a
+        /// different tree than the facade reads. Defaults preserve the layout
+        /// every existing caller and test expects.
+        /// </summary>
+        public AssetFileStore(
+            string rootDirectory,
+            string contentFolderName = "content",
+            string tempFolderName = "temp",
+            string stateFolderName = "state",
+            string activeStateFileName = "active.json")
         {
             if (string.IsNullOrWhiteSpace(rootDirectory))
             {
@@ -30,13 +42,41 @@ namespace Game.AssetSystem.Storage
                     nameof(rootDirectory));
             }
 
+            if (!IsSimpleFileName(contentFolderName))
+            {
+                throw new ArgumentException(
+                    "contentFolderName must be a simple folder name.",
+                    nameof(contentFolderName));
+            }
+
+            if (!IsSimpleFileName(tempFolderName))
+            {
+                throw new ArgumentException(
+                    "tempFolderName must be a simple folder name.",
+                    nameof(tempFolderName));
+            }
+
+            if (!IsSimpleFileName(stateFolderName))
+            {
+                throw new ArgumentException(
+                    "stateFolderName must be a simple folder name.",
+                    nameof(stateFolderName));
+            }
+
+            if (!IsSimpleFileName(activeStateFileName))
+            {
+                throw new ArgumentException(
+                    "activeStateFileName must be a simple file name.",
+                    nameof(activeStateFileName));
+            }
+
             RootDirectory = Path.GetFullPath(rootDirectory);
-            ContentDirectory = Path.Combine(RootDirectory, "content");
-            TempDirectory = Path.Combine(RootDirectory, "temp");
-            StateDirectory = Path.Combine(RootDirectory, "state");
-            ActiveStatePath = Path.Combine(StateDirectory, "active.json");
-            ActiveStateTempPath = Path.Combine(StateDirectory, "active.json.tmp");
-            ActiveStateBackupPath = Path.Combine(StateDirectory, "active.json.bak");
+            ContentDirectory = Path.Combine(RootDirectory, contentFolderName);
+            TempDirectory = Path.Combine(RootDirectory, tempFolderName);
+            StateDirectory = Path.Combine(RootDirectory, stateFolderName);
+            ActiveStatePath = Path.Combine(StateDirectory, activeStateFileName);
+            ActiveStateTempPath = ActiveStatePath + ".tmp";
+            ActiveStateBackupPath = ActiveStatePath + BackupSuffix;
         }
 
         public void EnsureDirectories()
@@ -376,6 +416,7 @@ namespace Game.AssetSystem.Storage
                 schemaVersion = ActiveStateSchemaVersion,
                 contentVersion = contentVersion,
                 activatedAtUtc = DateTime.UtcNow.ToString("o"),
+                bundleRoot = versionDirectory,
                 bundles = records
             };
 
@@ -578,11 +619,18 @@ namespace Game.AssetSystem.Storage
                     return false;
                 }
 
-                if (state.bundles == null || state.bundles.Length == 0)
+                // Two writers share this file: the storage primitive records
+                // per-bundle hashes, the hosting facade also records the bundle
+                // root (and the manifest). A record with neither cannot tell us
+                // where the content lives, but either one is enough to read it.
+                var hasBundles = state.bundles != null && state.bundles.Length > 0;
+                var hasBundleRoot = !string.IsNullOrWhiteSpace(state.bundleRoot);
+
+                if (!hasBundles && !hasBundleRoot)
                 {
                     error = new StorageError(
                         StorageErrorCode.ActiveStateCorrupted,
-                        "Active state has no bundles.");
+                        "Active state has neither bundles nor a bundle root.");
                     state = null;
                     return false;
                 }
