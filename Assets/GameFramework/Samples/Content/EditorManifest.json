@@ -1,0 +1,79 @@
+{
+    "version": 1,
+    "bundles": [
+        {
+            "name": "hero_001",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        },
+        {
+            "name": "hero_hud",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        },
+        {
+            "name": "scene_battle01",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        },
+        {
+            "name": "ui_battle",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        },
+        {
+            "name": "ui_city",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        },
+        {
+            "name": "ui_common",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "size": 0,
+            "dependencies": []
+        }
+    ],
+    "assets": [
+        {
+            "address": "Hero/Hero001_Hud",
+            "assetPath": "Assets/GameFramework/Samples/Content/Hero001_Hud.prefab",
+            "bundleIndex": 1,
+            "kind": 0
+        },
+        {
+            "address": "Hero/Material",
+            "assetPath": "Assets/GameFramework/Samples/Content/Hero.mat",
+            "bundleIndex": 0,
+            "kind": 0
+        },
+        {
+            "address": "Scene/Battle_01",
+            "assetPath": "Assets/GameFramework/Samples/Content/Battle_01.unity",
+            "bundleIndex": 2,
+            "kind": 1
+        },
+        {
+            "address": "Shared/CommonMaterial",
+            "assetPath": "Assets/GameFramework/Samples/Content/Common.mat",
+            "bundleIndex": 5,
+            "kind": 0
+        },
+        {
+            "address": "UI/BattlePanel",
+            "assetPath": "Assets/GameFramework/Samples/Content/BattlePanel.prefab",
+            "bundleIndex": 3,
+            "kind": 0
+        },
+        {
+            "address": "UI/MainCityPanel",
+            "assetPath": "Assets/GameFramework/Samples/Content/MainCityPanel.prefab",
+            "bundleIndex": 4,
+            "kind": 0
+        }
+    ]
+}

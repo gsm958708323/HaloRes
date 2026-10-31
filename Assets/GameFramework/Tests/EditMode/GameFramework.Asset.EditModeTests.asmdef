@@ -1,0 +1,7 @@
+{
+  "name": "GameFramework.Asset.EditModeTests",
+  "references": ["GameFramework.Asset", "GameFramework.Asset.Editor", "UniTask"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

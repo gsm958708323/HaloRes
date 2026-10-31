@@ -1,0 +1,6 @@
+{
+  "name": "GameFramework.Asset.PlayModeTests",
+  "references": ["GameFramework.Asset", "GameFramework.Asset.Samples", "UniTask"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e6d42df031443a4eb87c161c688339c, type: 3}
+  m_Name: DemoBuildProfile
+  m_EditorClassIdentifier: 
+  version: 1
+  entries:
+  - address: UI/MainCityPanel
+    bundle: ui_city
+    asset: {fileID: 8734414389303622185, guid: 010b62c764950a948bbe585e8b30eb94, type: 3}
+  - address: UI/BattlePanel
+    bundle: ui_battle
+    asset: {fileID: 7627606331965757640, guid: b208a36cf22800446aac285bca174ca0, type: 3}
+  - address: Hero/Hero001_Hud
+    bundle: hero_hud
+    asset: {fileID: 4158169133675420051, guid: cc352f117ebcebb42a97519881858336, type: 3}
+  - address: Shared/CommonMaterial
+    bundle: ui_common
+    asset: {fileID: 2100000, guid: a1b7df862ace81c4ab376e8029bdd088, type: 2}
+  - address: Hero/Material
+    bundle: hero_001
+    asset: {fileID: 2100000, guid: b7b94e3a80a1b4c4c93b160084ce1018, type: 2}
+  - address: Scene/Battle_01
+    bundle: scene_battle01
+    asset: {fileID: 102900000, guid: dc39ec5320108564999c8c391ce7302d, type: 3}

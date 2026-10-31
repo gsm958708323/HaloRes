@@ -1,0 +1,14 @@
+{
+  "name": "GameFramework.Asset",
+  "rootNamespace": "GameFramework.Asset",
+  "references": ["UniTask"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

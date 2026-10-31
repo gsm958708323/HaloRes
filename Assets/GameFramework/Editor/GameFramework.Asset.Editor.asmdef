@@ -1,0 +1,7 @@
+{
+  "name": "GameFramework.Asset.Editor",
+  "rootNamespace": "GameFramework.Asset.Editor",
+  "references": ["GameFramework.Asset", "UniTask"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

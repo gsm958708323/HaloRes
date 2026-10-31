@@ -1,0 +1,6 @@
+{
+  "name": "GameFramework.Asset.Samples",
+  "rootNamespace": "GameFramework.Asset.Samples",
+  "references": ["GameFramework.Asset", "UniTask"],
+  "autoReferenced": false
+}
