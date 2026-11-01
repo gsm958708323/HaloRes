@@ -1,0 +1,14 @@
+{
+  "name": "GameUI.Runtime",
+  "rootNamespace": "GameUI.Runtime",
+  "references": ["GameUI.Kernel", "GameUI.Components", "GameFramework.Asset", "UniTask", "Unity.ugui", "Unity.TextMeshPro", "Unity.Timeline", "Unity.RenderPipelines.Universal.Runtime", "Unity.InputSystem"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

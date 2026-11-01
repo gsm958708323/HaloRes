@@ -1,0 +1,14 @@
+{
+  "name": "GameUI.EditModeTests",
+  "rootNamespace": "GameUI.Tests",
+  "references": ["GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "UniTask"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "GameUI.Components",
+  "rootNamespace": "GameUI.Components",
+  "references": ["Unity.ugui", "Unity.Timeline"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
