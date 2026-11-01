@@ -18,16 +18,30 @@ namespace GameUI.Runtime
             Rect = gameObject.GetComponent<RectTransform>();
             InstanceScope = new UIScope();
             _initialized = true;
-            var binding = gameObject.GetComponent<UIBindingData>();
-            BindControls(binding);
-            OnCreate();
+            try
+            {
+                var binding = gameObject.GetComponent<UIBindingData>();
+                BindControls(binding);
+                OnCreate();
+            }
+            catch
+            {
+                try { if (this is UINode node) node.HostDestroy(); else DestroyElement(); }
+                catch (Exception cleanupError) { Debug.LogException(cleanupError); }
+                throw;
+            }
         }
 
-        internal void DestroyElement()
+        internal virtual void DestroyElement()
         {
             if (!_initialized) return;
+            var scope = InstanceScope;
             try { OnDestroy(); }
-            finally { InstanceScope.Dispose(); _initialized = false; }
+            finally
+            {
+                try { scope.Dispose(); }
+                finally { _initialized = false; GameObject = null; Rect = null; InstanceScope = null; }
+            }
         }
 
         protected virtual void BindControls(UIBindingData data) { }

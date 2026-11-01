@@ -53,6 +53,8 @@ namespace GameUI.Kernel
         internal bool EnteredThisSession;
         internal bool OpenAttempted;
         internal bool ResumeAttempted;
+        internal bool HasContext;
+        internal string LastContext;
     }
 
     internal sealed class UIEntryTable

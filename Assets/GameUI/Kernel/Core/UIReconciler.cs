@@ -12,8 +12,11 @@ namespace GameUI.Kernel
         private readonly IUIClock _clock;
         private readonly IUILogSink _log;
         private readonly UIFrame _frame = new UIFrame();
+        private readonly List<UIEntry> _entriesSnapshot = new List<UIEntry>();
         private bool _running;
         private bool _rerun;
+        private bool _finishTransitions;
+        private bool _shutdownPending;
 
         internal UIReconciler(UIKernel kernel, UIEntryTable table, IUIViewSource source, IUIPresentationSink sink, IUIClock clock, IUILogSink log)
         {
@@ -39,6 +42,19 @@ namespace GameUI.Kernel
             Request();
         }
 
+        internal void Shutdown()
+        {
+            _finishTransitions = true;
+            _shutdownPending = true;
+            _kernel.NavigatorInternal.CloseAllForShutdown();
+            Request();
+        }
+
+        internal void FailFromCallback(UIEntry entry, Exception error)
+        {
+            if (entry != null && entry.Act.Phase != UIPhase.Closed) Fail(entry, error);
+        }
+
         private void Reconcile()
         {
             if (_running) { _rerun = true; return; }
@@ -51,18 +67,24 @@ namespace GameUI.Kernel
                     _rerun = false;
                     UIResolver.Resolve(_table, _clock.Now, _kernel.Input.IsLocked, _frame);
                     progressed = false;
-                    var entries = SnapshotEntries();
-                    for (var i = 0; i < entries.Count; i++)
+                    SnapshotEntries();
+                    for (var i = 0; i < _entriesSnapshot.Count; i++)
                     {
                         UITarget target;
-                        if (!_frame.Targets.TryGetValue(entries[i].Id, out target)) target = UITarget.Absent;
-                        if (entries[i].Act.Instance != null)
+                        var entry = _entriesSnapshot[i];
+                        if (!_frame.Targets.TryGetValue(entry.Id, out target)) target = UITarget.Absent;
+                        if (entry.Act.Instance != null)
                         {
                             int order;
-                            if (_frame.BaseOrders.TryGetValue(entries[i].Id, out order)) entries[i].Act.Instance.SetBaseOrder(order);
+                            if (_frame.BaseOrders.TryGetValue(entry.Id, out order))
+                                try { entry.Act.Instance.SetBaseOrder(order); } catch (Exception error) { Fail(entry, error); }
                         }
-                        if (Step(entries[i], target)) progressed = true;
+                        if (Step(entry, target)) progressed = true;
+                        if (NotifyContext(entry)) progressed = true;
+                        if (_rerun) break;
                     }
+
+                    if (_rerun) continue;
 
                     for (var i = 0; i < _frame.BrokenChains.Count; i++) _kernel.NavigatorInternal.RestoreFromBrokenChain(_frame.BrokenChains[i]);
                     _sink.Apply(_frame.Presentation);
@@ -72,18 +94,37 @@ namespace GameUI.Kernel
                     if (round == 31) _log.Log(UILogLevel.Error, "UI reconciliation did not converge within 32 rounds.\n" + _kernel.Dump());
                 }
             }
-            finally { _running = false; }
+            finally
+            {
+                _running = false;
+                if (_shutdownPending) CompleteShutdown();
+            }
         }
 
-        private List<UIEntry> SnapshotEntries()
+        private void CompleteShutdown()
         {
-            var result = new List<UIEntry>(_table.Stack.Count + _table.Overlays.Count);
-            result.AddRange(_table.Stack);
-            result.AddRange(_table.Overlays);
-            return result;
+            _finishTransitions = false;
+            _shutdownPending = false;
+            _kernel.CompleteDisposal();
+        }
+
+        private void SnapshotEntries()
+        {
+            _entriesSnapshot.Clear();
+            _entriesSnapshot.AddRange(_table.Stack);
+            _entriesSnapshot.AddRange(_table.Overlays);
         }
 
         private bool Step(UIEntry entry, UITarget target)
+        {
+            if (entry.Act.Phase == UIPhase.Shown && target == UITarget.Shown) return false;
+            if (entry.Act.Phase == UIPhase.Hidden && target == UITarget.Hidden) return false;
+            if (entry.Act.Phase == UIPhase.Loading && target != UITarget.Absent
+                && entry.Act.Load != null && !entry.Act.Load.IsDone) return false;
+            return StepChanging(entry, target);
+        }
+
+        private bool StepChanging(UIEntry entry, UITarget target)
         {
             switch (entry.Act.Phase)
             {
@@ -93,7 +134,9 @@ namespace GameUI.Kernel
                 case UIPhase.Loading:
                     if (target == UITarget.Absent)
                     {
-                        entry.Act.Load?.Cancel();
+                        if (entry.Act.Load != null && entry.Act.Load.IsDone && entry.Act.Load.Result != null)
+                            _source.Return(entry.Act.Load.Result, true);
+                        else entry.Act.Load?.Cancel();
                         return CloseWithoutInstance(entry, UICloseReason.Cancelled);
                     }
                     if (entry.Act.Load == null || !entry.Act.Load.IsDone) return false;
@@ -103,13 +146,16 @@ namespace GameUI.Kernel
                     return Guard(entry, delegate
                     {
                         entry.Act.Instance.Logic.BindSession(_kernel.Navigator, entry.Id);
+                        entry.Act.OpenAttempted = true;
                         entry.Act.Instance.Logic.Open(entry.Want.Args);
                         entry.OpenCompleted = true;
+                        entry.Opened.TrySetResult(new UIOpenResult(true, UICloseReason.Normal));
                     }, UIPhase.Hidden);
                 case UIPhase.Hidden:
                     if (target == UITarget.Absent) return CloseHidden(entry);
                     if (target == UITarget.Shown) return Guard(entry, delegate
                     {
+                        entry.Act.ResumeAttempted = true;
                         entry.Act.Instance.Logic.Resume();
                         if (!entry.Act.EnteredThisSession)
                         {
@@ -128,23 +174,23 @@ namespace GameUI.Kernel
                     if (target == UITarget.Shown && entry.Act.Instance.IsTransitionDone)
                         return Guard(entry, delegate { entry.Act.Instance.CompleteTransition(); entry.Act.Phase = UIPhase.Shown; }, null);
                     if (target == UITarget.Hidden)
-                        return Guard(entry, delegate { entry.Act.Instance.CompleteTransition(); entry.Act.Instance.Logic.Pause(); entry.Act.Instance.SetVisible(false); entry.Act.Phase = UIPhase.Hidden; }, null);
+                        return Guard(entry, delegate { entry.Act.Instance.CompleteTransition(); Pause(entry); entry.Act.Instance.SetVisible(false); entry.Act.Phase = UIPhase.Hidden; }, null);
                     if (target == UITarget.Absent)
-                        return Guard(entry, delegate { entry.Act.Instance.CompleteTransition(); entry.Act.Instance.Logic.Pause(); entry.Act.Instance.BeginExit(); entry.Act.Phase = UIPhase.Exiting; }, null);
+                        return Guard(entry, delegate { entry.Act.Instance.CompleteTransition(); Pause(entry); entry.Act.Instance.BeginExit(); entry.Act.Phase = UIPhase.Exiting; }, null);
                     return false;
                 case UIPhase.Shown:
                     if (target == UITarget.Shown) return false;
                     if (target == UITarget.Hidden)
-                        return Guard(entry, delegate { entry.Act.Instance.Logic.Pause(); entry.Act.Instance.SetVisible(false); entry.Act.Phase = UIPhase.Hidden; }, null);
-                    return Guard(entry, delegate { entry.Act.Instance.Logic.Pause(); entry.Act.Instance.BeginExit(); entry.Act.Phase = UIPhase.Exiting; }, null);
+                        return Guard(entry, delegate { Pause(entry); entry.Act.Instance.SetVisible(false); entry.Act.Phase = UIPhase.Hidden; }, null);
+                    return Guard(entry, delegate { Pause(entry); entry.Act.Instance.BeginExit(); entry.Act.Phase = UIPhase.Exiting; }, null);
                 case UIPhase.Exiting:
                     if (entry.Act.Instance == null) return CloseWithoutInstance(entry, entry.Want.Intent == UIExitIntent.Replaced ? UICloseReason.Replaced : UICloseReason.Normal);
-                    if (!entry.Act.Instance.HandoffRequested && !entry.Act.Instance.IsTransitionDone) return false;
+                    if (!_finishTransitions && !entry.Act.Instance.HandoffRequested && !entry.Act.Instance.IsTransitionDone) return false;
                     return Guard(entry, delegate
                     {
                         entry.Act.Instance.CompleteTransition();
                         entry.Act.Instance.SetVisible(false);
-                        entry.Act.Instance.Logic.Close();
+                        CloseSession(entry);
                         var reason = entry.Want.Intent == UIExitIntent.Replaced ? UICloseReason.Replaced : entry.Want.Intent == UIExitIntent.Reset ? UICloseReason.Reset : UICloseReason.Normal;
                         _source.Return(entry.Act.Instance, true);
                         entry.Act.Instance = null;
@@ -154,6 +200,18 @@ namespace GameUI.Kernel
                 case UIPhase.Closed: return false;
                 default: return false;
             }
+        }
+
+        private bool NotifyContext(UIEntry entry)
+        {
+            if (!entry.Info.IsOverlay || entry.Info.Visibility != UIOverlayVisibility.WithContext || entry.Act.Instance == null || !entry.OpenCompleted)
+                return false;
+            var context = _frame.Presentation.TopContext;
+            if (entry.Act.HasContext && string.Equals(entry.Act.LastContext, context, StringComparison.Ordinal)) return false;
+            entry.Act.HasContext = true;
+            entry.Act.LastContext = context;
+            try { entry.Act.Instance.Logic.ContextChanged(context); return true; }
+            catch (Exception error) { return Fail(entry, error); }
         }
 
         private bool StartLoad(UIEntry entry)
@@ -174,7 +232,7 @@ namespace GameUI.Kernel
         {
             return Guard(entry, delegate
             {
-                entry.Act.Instance.Logic.Close();
+                CloseSession(entry);
                 _source.Return(entry.Act.Instance, true);
                 entry.Act.Instance = null;
                 entry.Act.Reason = ReasonFor(entry);
@@ -199,8 +257,16 @@ namespace GameUI.Kernel
             {
                 if (entry.Act.Instance != null)
                 {
+                    if (entry.Act.ResumeAttempted)
+                    {
+                        try { Pause(entry); } catch (Exception closeError) { _log.Log(UILogLevel.Warning, closeError.ToString()); }
+                    }
+                    if (entry.Act.OpenAttempted)
+                    {
+                        try { CloseSession(entry); } catch (Exception closeError) { _log.Log(UILogLevel.Warning, closeError.ToString()); }
+                    }
                     try { entry.Act.Instance.SetVisible(false); } catch (Exception closeError) { _log.Log(UILogLevel.Warning, closeError.ToString()); }
-                    _source.Return(entry.Act.Instance, false);
+                    try { _source.Return(entry.Act.Instance, false); } catch (Exception closeError) { _log.Log(UILogLevel.Warning, closeError.ToString()); }
                     entry.Act.Instance = null;
                 }
                 entry.Act.Load?.Cancel();
@@ -225,6 +291,18 @@ namespace GameUI.Kernel
                 return true;
             }
             catch (Exception error) { return Fail(entry, error); }
+        }
+
+        private static void Pause(UIEntry entry)
+        {
+            entry.Act.ResumeAttempted = false;
+            entry.Act.Instance.Logic.Pause();
+        }
+
+        private static void CloseSession(UIEntry entry)
+        {
+            entry.Act.OpenAttempted = false;
+            entry.Act.Instance.Logic.Close();
         }
 
         private UICloseReason ReasonFor(UIEntry entry)

@@ -9,17 +9,24 @@ namespace GameUI.Runtime
     {
         private static UIKernel _kernel;
         private static UICameraRig _camera;
+        private static UIViewPool _pool;
+        private static UIViewRegistry _registry;
+        private static UIDragCoordinator _drags;
 
         public static UICameraRig Camera { get { return _camera; } }
+        public static UIDragCoordinator Drags { get { return _drags; } }
         public static UIInputGate Input { get { return RequireKernel().Input; } }
         public static event Action<UIChange> Changed;
         public static event Action BackAtRoot;
 
-        internal static void Bind(UIKernel kernel, UICameraRig camera)
+        internal static void Bind(UIKernel kernel, UICameraRig camera, UIViewPool pool, UIViewRegistry registry, UIDragCoordinator drags)
         {
             Unbind();
             _kernel = kernel;
             _camera = camera;
+            _pool = pool;
+            _registry = registry;
+            _drags = drags;
             _kernel.Changed += OnChanged;
             _kernel.BackAtRoot += OnBackAtRoot;
         }
@@ -33,6 +40,9 @@ namespace GameUI.Runtime
             }
             _kernel = null;
             _camera = null;
+            _pool = null;
+            _registry = null;
+            _drags = null;
         }
 
         public static UIHandle Open<TView>(UIOpenPolicy policy = UIOpenPolicy.Push) where TView : UIView
@@ -56,9 +66,10 @@ namespace GameUI.Runtime
 
         public static async UniTask Preload<TView>() where TView : UIView
         {
-            var handle = RequireKernel().Navigator.Open(typeof(TView), null, UIOpenPolicy.Push);
-            handle.Close();
-            await handle.WaitClosed();
+            RequireKernel();
+            var info = _registry.Get(typeof(TView));
+            if (!info.KeepAlive) throw new InvalidOperationException("Preloading is reserved for KeepAlive views: " + info.Id);
+            await _pool.Preload(info);
         }
 
         private static UIKernel RequireKernel()

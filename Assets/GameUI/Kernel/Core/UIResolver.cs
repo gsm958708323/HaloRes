@@ -9,6 +9,7 @@ namespace GameUI.Kernel
         internal readonly Dictionary<int, int> BaseOrders = new Dictionary<int, int>();
         internal readonly List<UIEntry> VisibleInDrawOrder = new List<UIEntry>();
         internal readonly List<UIEntry> BrokenChains = new List<UIEntry>();
+        internal readonly int[] LayerCounts = new int[10];
         internal UIPresentation Presentation;
 
         internal void Clear()
@@ -17,6 +18,7 @@ namespace GameUI.Kernel
             BaseOrders.Clear();
             VisibleInDrawOrder.Clear();
             BrokenChains.Clear();
+            Array.Clear(LayerCounts, 0, LayerCounts.Length);
         }
     }
 
@@ -36,34 +38,28 @@ namespace GameUI.Kernel
                 frame.BaseOrders[entry.Id] = WindowOrderStart + i * SlotWidth;
             }
 
-            var activeStack = new List<UIEntry>();
-            for (var i = 0; i < table.Stack.Count; i++)
-            {
-                var entry = table.Stack[i];
-                if ((entry.Want.Wanted || entry.Want.ReplacedBy != 0) && entry.Act.Phase < UIPhase.Exiting) activeStack.Add(entry);
-            }
-
             var worldCovered = false;
             string topContext = null;
             var firstReadyFullScreen = -1;
-            for (var i = activeStack.Count - 1; i >= 0; i--)
+            for (var i = table.Stack.Count - 1; i >= 0; i--)
             {
-                var entry = activeStack[i];
+                var entry = table.Stack[i];
+                if (!IsActive(entry)) continue;
                 if (!IsReady(entry)) continue;
                 if (entry.Info.Mode == UIMode.FullScreen)
                 {
-                    firstReadyFullScreen = table.Stack.IndexOf(entry);
+                    firstReadyFullScreen = i;
                     worldCovered = entry.Info.CoversWorld;
                     topContext = entry.Info.Context;
                     break;
                 }
             }
 
-            for (var i = 0; i < activeStack.Count; i++)
+            for (var i = 0; i < table.Stack.Count; i++)
             {
-                var entry = activeStack[i];
-                var stackIndex = table.Stack.IndexOf(entry);
-                frame.Targets[entry.Id] = firstReadyFullScreen >= 0 && stackIndex < firstReadyFullScreen
+                var entry = table.Stack[i];
+                if (!IsActive(entry)) continue;
+                frame.Targets[entry.Id] = firstReadyFullScreen >= 0 && i < firstReadyFullScreen
                     ? UITarget.Hidden : UITarget.Shown;
                 ApplySuccessorHold(entry, table, frame);
             }
@@ -72,6 +68,7 @@ namespace GameUI.Kernel
             var popupMaskOrder = 0;
             var popupMaskOwner = 0;
             var popupMaskStyle = UIMaskStyle.None;
+            var popupMaskCloseOnClick = false;
             for (var i = 0; i < table.Stack.Count; i++)
             {
                 var entry = table.Stack[i];
@@ -80,6 +77,7 @@ namespace GameUI.Kernel
                     popupMaskVisible = true;
                     popupMaskOrder = frame.BaseOrders[entry.Id];
                     popupMaskOwner = entry.Id;
+                    popupMaskCloseOnClick = entry.Info.CloseOnMaskClick;
                     if ((int)entry.Info.MaskStyle > (int)popupMaskStyle) popupMaskStyle = entry.Info.MaskStyle;
                 }
             }
@@ -104,9 +102,10 @@ namespace GameUI.Kernel
             for (var i = 0; i < table.Overlays.Count; i++)
             {
                 var entry = table.Overlays[i];
-                frame.BaseOrders[entry.Id] = LayerOrder(entry.Info.Layer) + i * SlotWidth;
+                var layer = (int)entry.Info.Layer;
+                frame.BaseOrders[entry.Id] = LayerOrder(entry.Info.Layer) + frame.LayerCounts[layer]++ * SlotWidth;
                 frame.Targets[entry.Id] = ResolveOverlayTarget(entry, worldCovered, topContext);
-                if (entry.Want.Wanted && entry.Info.Layer == UILayer.System && frame.Targets[entry.Id] == UITarget.Shown)
+                if (entry.Want.Wanted && entry.Info.Layer == UILayer.System && IsPresented(entry, frame.Targets))
                 {
                     systemVisible = true;
                     systemOrder = frame.BaseOrders[entry.Id];
@@ -121,35 +120,48 @@ namespace GameUI.Kernel
                     frame.VisibleInDrawOrder.Add(entry);
             }
 
+            var inputGateLocked = externalLocked || transitionLocked;
             frame.Presentation = new UIPresentation(
                 worldCovered,
                 topContext,
-                externalLocked || transitionLocked || systemVisible,
+                inputGateLocked || systemVisible,
+                inputGateLocked,
                 loading,
                 popupMaskVisible,
                 popupMaskOrder,
                 popupMaskStyle,
                 popupMaskOwner,
+                popupMaskCloseOnClick,
                 systemVisible,
                 systemOrder);
 
             for (var i = 0; i < table.Stack.Count; i++) CheckBrokenChain(table.Stack[i], table, frame);
             for (var i = 0; i < table.Overlays.Count; i++) CheckBrokenChain(table.Overlays[i], table, frame);
+            for (var i = 1; i < frame.VisibleInDrawOrder.Count; i++)
+            {
+                var entry = frame.VisibleInDrawOrder[i];
+                var order = frame.BaseOrders[entry.Id];
+                var j = i - 1;
+                while (j >= 0 && frame.BaseOrders[frame.VisibleInDrawOrder[j].Id] > order)
+                { frame.VisibleInDrawOrder[j + 1] = frame.VisibleInDrawOrder[j]; j--; }
+                frame.VisibleInDrawOrder[j + 1] = entry;
+            }
         }
 
         private static void CheckBrokenChain(UIEntry entry, UIEntryTable table, UIFrame frame)
         {
             if (entry.Want.ReplacedBy == 0 || entry.Want.Wanted || entry.Act.Phase >= UIPhase.Exiting) return;
-            UIEntry successor;
-            if (!table.ById.TryGetValue(entry.Want.ReplacedBy, out successor) || successor.Act.Phase == UIPhase.Closed)
+            if (FindSuccessor(entry, table) == null)
                 frame.BrokenChains.Add(entry);
         }
 
         private static void ApplySuccessorHold(UIEntry entry, UIEntryTable table, UIFrame frame)
         {
             if (entry.Want.Wanted || entry.Want.ReplacedBy == 0) return;
-            UIEntry successor;
-            if (!table.ById.TryGetValue(entry.Want.ReplacedBy, out successor) || successor.Act.Phase == UIPhase.Closed) return;
+            if (entry.Act.Phase == UIPhase.Pending || entry.Act.Phase == UIPhase.Loading)
+            { frame.Targets[entry.Id] = UITarget.Absent; return; }
+            var successor = FindSuccessor(entry, table);
+            if (successor == null) return;
             var successorStable = successor.Act.Phase == UIPhase.Shown;
             if (successorStable)
             {
@@ -170,9 +182,27 @@ namespace GameUI.Kernel
             }
         }
 
+        private static UIEntry FindSuccessor(UIEntry entry, UIEntryTable table)
+        {
+            var id = entry.Want.ReplacedBy;
+            for (var remaining = table.ById.Count; remaining > 0 && id != 0; remaining--)
+            {
+                UIEntry successor;
+                if (!table.ById.TryGetValue(id, out successor) || successor.Act.Phase == UIPhase.Closed) return null;
+                if (successor.Want.Wanted) return successor;
+                id = successor.Want.ReplacedBy;
+            }
+            return null;
+        }
+
         private static bool IsReady(UIEntry entry)
         {
             return entry.Act.Phase == UIPhase.Hidden || entry.Act.Phase == UIPhase.Entering || entry.Act.Phase == UIPhase.Shown;
+        }
+
+        private static bool IsActive(UIEntry entry)
+        {
+            return (entry.Want.Wanted || entry.Want.ReplacedBy != 0) && entry.Act.Phase < UIPhase.Exiting;
         }
 
         private static bool IsPresented(UIEntry entry, Dictionary<int, UITarget> targets)

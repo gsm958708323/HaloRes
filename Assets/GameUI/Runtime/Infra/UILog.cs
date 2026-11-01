@@ -19,5 +19,6 @@ namespace GameUI.Runtime
     public sealed class UnityUIClock : IUIClock
     {
         public double Now { get { return Time.unscaledTime; } }
+        public int Frame { get { return Time.frameCount; } }
     }
 }

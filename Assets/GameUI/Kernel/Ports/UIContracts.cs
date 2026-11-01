@@ -102,6 +102,7 @@ namespace GameUI.Kernel
     public interface IUIClock
     {
         double Now { get; }
+        int Frame { get; }
     }
 
     public interface IUILogSink
@@ -155,22 +156,26 @@ namespace GameUI.Kernel
             bool worldCovered,
             string topContext,
             bool inputLocked,
+            bool inputGateLocked,
             bool loadingIndicator,
             bool maskVisible,
             int maskOrder,
             UIMaskStyle maskStyle,
             int maskOwnerId,
+            bool maskCloseOnClick,
             bool systemOverlayVisible,
             int systemOverlayOrder)
         {
             WorldCovered = worldCovered;
             TopContext = topContext;
             InputLocked = inputLocked;
+            InputGateLocked = inputGateLocked;
             LoadingIndicator = loadingIndicator;
             MaskVisible = maskVisible;
             MaskOrder = maskOrder;
             MaskStyle = maskStyle;
             MaskOwnerId = maskOwnerId;
+            MaskCloseOnClick = maskCloseOnClick;
             SystemOverlayVisible = systemOverlayVisible;
             SystemOverlayOrder = systemOverlayOrder;
         }
@@ -178,11 +183,13 @@ namespace GameUI.Kernel
         public bool WorldCovered { get; }
         public string TopContext { get; }
         public bool InputLocked { get; }
+        public bool InputGateLocked { get; }
         public bool LoadingIndicator { get; }
         public bool MaskVisible { get; }
         public int MaskOrder { get; }
         public UIMaskStyle MaskStyle { get; }
         public int MaskOwnerId { get; }
+        public bool MaskCloseOnClick { get; }
         public bool SystemOverlayVisible { get; }
         public int SystemOverlayOrder { get; }
     }

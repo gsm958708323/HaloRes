@@ -9,7 +9,7 @@ namespace GameUI.Runtime
         private IUINavigator _navigator;
         private int _entryId;
 
-        protected IUINavigator Nav { get { return _navigator; } }
+        protected internal IUINavigator Nav { get { return _navigator; } }
         protected UIArgs RawArgs { get { return _args; } }
 
         void IUIViewLogic.BindSession(IUINavigator navigator, int entryId)

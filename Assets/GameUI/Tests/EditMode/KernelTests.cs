@@ -176,7 +176,7 @@ namespace GameUI.Tests
             public void ContextChanged(string context) { }
         }
 
-        private sealed class ManualClock : IUIClock { public double Now { get; private set; } public void Advance(double seconds) { Now += seconds; } }
+        private sealed class ManualClock : IUIClock { public double Now { get; private set; } public int Frame { get; private set; } public void Advance(double seconds) { Now += seconds; Frame++; } }
         private sealed class FakeSink : IUIPresentationSink { public UIPresentation Last; public void Apply(in UIPresentation presentation) { Last = presentation; } }
         private sealed class TestLog : IUILogSink { public void Log(UILogLevel level, string message) { } }
     }

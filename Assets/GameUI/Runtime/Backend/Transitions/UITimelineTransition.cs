@@ -1,4 +1,4 @@
-using GameUI.Components;
+using UnityEngine;
 using UnityEngine.Playables;
 
 namespace GameUI.Runtime
@@ -7,10 +7,11 @@ namespace GameUI.Runtime
     {
         private readonly PlayableDirector _director;
         public UITimelineTransition(PlayableDirector director) { _director = director; }
-        public bool IsDone { get { return _director == null || _director.state != PlayState.Playing || _director.time >= _director.duration - 0.0001d; } }
+        public bool IsDone { get { return _director == null || _director.duration <= 0d || _director.time >= _director.duration - 0.0001d; } }
         public void Play()
         {
             if (_director == null) return;
+            _director.timeUpdateMode = DirectorUpdateMode.UnscaledGameTime;
             _director.time = 0d;
             _director.Evaluate();
             _director.Play();

@@ -43,6 +43,12 @@ namespace GameUI.Kernel
         {
             _kernel.EnsureAlive();
             info.Validate();
+            if (args != null && (info.ArgsType == null || !info.ArgsType.IsInstanceOfType(args)))
+            {
+                var rejected = new UIEntry(Interlocked.Increment(ref _nextId), info, args, "InvalidArgs");
+                _kernel.CompleteRejected(rejected, "Argument type mismatch for " + info.Id);
+                return new UIHandle(_kernel, rejected);
+            }
             var list = info.IsOverlay ? _table.Overlays : _table.Stack;
             UIEntry existing = null;
             if (info.IsSingle)
@@ -122,11 +128,20 @@ namespace GameUI.Kernel
 
         internal void RestoreFromBrokenChain(UIEntry entry)
         {
+            if (entry.Act.Phase >= UIPhase.Exiting) return;
             entry.Want.Wanted = true;
             entry.Want.ReplacedBy = 0;
             entry.Want.Intent = UIExitIntent.Normal;
             entry.Want.Source = "Restore";
             _kernel.Record(entry, entry.Act.Phase, entry.Act.Phase, "Restore");
+        }
+
+        internal void CloseAllForShutdown()
+        {
+            for (var i = _table.Stack.Count - 1; i >= 0; i--)
+                if (_table.Stack[i].Act.Phase < UIPhase.Exiting) SetAbsent(_table.Stack[i], UIExitIntent.Normal, 0, "Shutdown");
+            for (var i = _table.Overlays.Count - 1; i >= 0; i--)
+                if (_table.Overlays[i].Act.Phase < UIPhase.Exiting) SetAbsent(_table.Overlays[i], UIExitIntent.Normal, 0, "Shutdown");
         }
 
         public bool Back()

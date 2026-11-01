@@ -19,18 +19,9 @@ namespace GameUI.Runtime
         {
             if (_root == null) return;
             _camera?.SetWorldCovered(presentation.WorldCovered);
-            if (_root.Mask != null)
-            {
-                _root.Mask.gameObject.SetActive(presentation.MaskVisible);
-                _root.Mask.color = presentation.MaskStyle == UIMaskStyle.Dim ? new Color(0f, 0f, 0f, 0.55f) : new Color(0f, 0f, 0f, 0f);
-                if (_root.MaskCanvas != null) _root.MaskCanvas.sortingOrder = presentation.MaskOrder;
-            }
-            if (_root.Blocker != null)
-            {
-                _root.Blocker.gameObject.SetActive(presentation.InputLocked);
-                _root.Blocker.raycastTarget = presentation.InputLocked;
-            }
-            if (_root.LoadingIndicator != null) _root.LoadingIndicator.gameObject.SetActive(presentation.LoadingIndicator);
+            _root.ApplyMask(presentation);
+            _root.ApplyInputBlocker(presentation.InputGateLocked, presentation.SystemOverlayVisible, presentation.SystemOverlayOrder);
+            _root.SetLoadingIndicator(presentation.LoadingIndicator);
         }
     }
 }

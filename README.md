@@ -28,6 +28,10 @@ flowchart LR
 4. 打开 `Assets/Scenes/AssetLifecycleLab.unity` 并进入 Play Mode。在启动组件的 Inspector 中选择 Editor 或 Bundle 模式；独立运行程序始终使用 Bundle 模式。
 5. 使用 `Game Framework > Assets > Debugger` 查看资源地址、拥有者和资源包状态。
 
+`StreamingAssets/GameFrameworkAsset` 与 `StreamingAssets/GameUIAsset` 是可重建的随包内容，
+已加入 Git 忽略列表；首次运行 Bundle 模式或相关测试前，需要执行对应的 Stage 菜单。
+源码、生成的 C# 绑定/Registry、演示 Prefab、Timeline 和构建配置仍随项目提交。
+
 主城面板和战斗面板共享 `ui_common`；战斗场景与 HUD 共享 `hero_001`。
 返回主城时，系统释放战斗作用域，保留主城仍在使用的材质。
 加载过程中返回，只取消该作用域的等待，不影响其他作用域。
@@ -85,3 +89,48 @@ Windows 编辑器测试不能证明 Android/iOS 真机行为。应为每个目�
 
 架构与关键生命周期决策记录在 `Docs/adr/0001-asset-lifetime-and-content-activation.md`。
 需求覆盖、实测结果和待完成的真机检查记录在 `Docs/verification/2026-10-31-asset-framework.md`。
+
+## GameUI 框架
+
+`Assets/GameUI` 提供基于现有资源框架的 UGUI UI 系统，包括导航收敛、替换失败回退、
+模态遮罩、分层输入、Timeline、节点 Scope、列表、模型展示、世界 HUD 和拖拽。
+UI Prefab 通过 `AssetSystemUIAssetService -> AssetScope -> AssetSystem` 按地址加载；
+Editor 使用编辑器 Provider，Player 使用真实 AssetBundle Provider。
+
+应用先初始化并驱动资源系统，再注入 UI：
+
+```csharp
+UIBoot.Install(new UIBootConfig
+{
+    System = system,
+    Registry = GameUI_DemoRegistry.Create(), // 替换为业务程序集生成的 Registry
+    WorldCamera = Camera.main,
+    // Root 可选；留空时查找或自动创建。
+});
+await UIBoot.PreloadKeepAlive();
+UI.Open<DemoHomeView>();
+// 应用关闭时先结束 UI，再等待外部资源系统完成关闭。
+UIBoot.Shutdown();
+await system.ShutdownAsync();
+```
+
+资源系统由应用拥有，UI 不创建或关闭它。缓存实例持有 Prefab 资源，淘汰时等待
+原生实例销毁再释放；低内存时可回收非驻留缓存。业务消息使用 SessionScope 或 BindScope，
+控件监听使用 InstanceScope；OnOpen 必须重置会话状态，不能依赖缓存复用时再次 OnCreate。
+
+打开 `Assets/GameUI/Demo/GameUIDemo.unity` 后进入 Play Mode。演示包含首页、弹窗、Overlay、
+System Overlay、带 bool 结果的确认框、1000 项虚拟列表及模型舞台。
+
+- `GameUI > Create Complete Demo`：重建演示 Prefab、Timeline、绑定、构建配置和场景。
+- `Assets > GameUI > Create UI From Prefab`：从选中的 Prefab 生成业务模板、Args、绑定和默认过渡。
+- `GameUI > Generate UIView Registry` / `Generate Binding Code`：生成代码；编译后自动更新 Registry。
+- `GameUI > Lint Selected Prefab` / `Window > GameUI > Debugger`：资源检查和运行时状态、Scope、输入锁、历史快照。
+- `GameUI > Stage Demo Bundles`：构建 UI 资源并放入 `StreamingAssets/GameUIAsset/<platform>`。
+- `GameUI > Build Windows Demo Player`：输出 `Build/UIPlayer/GameUIDemo.exe`。
+
+测试前先准备 UI Bundle，然后运行 `GameUI.EditModeTests` 与 `GameUI.PlayModeTests`。
+独立 Player 传入 `--ui-smoke-result <absolute-json-path>` 会自动验证 Bundle 加载、弹窗遮罩、
+System 交互、类型化结果、虚拟列表、模型目标及关闭后资源归零，并输出 JSON 后退出。
+结果和验证边界记录在 `Docs/verification/2026-11-01-ui-framework.md`。
+架构决策见 `Docs/adr/0002-ui-reconciliation-and-resource-ownership.md` 和
+`Docs/adr/0003-ui-runtime-integration.md`。

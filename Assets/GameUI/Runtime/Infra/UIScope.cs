@@ -6,12 +6,21 @@ namespace GameUI.Runtime
 {
     public sealed class UIScope : IDisposable
     {
-        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<Action> _disposables = new List<Action>();
+        private CancellationTokenSource _lifetime;
         private bool _disposed;
 
-        public CancellationToken Token { get { return _lifetime.Token; } }
+        public CancellationToken Token
+        {
+            get
+            {
+                if (_disposed) throw new ObjectDisposedException(nameof(UIScope));
+                if (_lifetime == null) _lifetime = new CancellationTokenSource();
+                return _lifetime.Token;
+            }
+        }
         public bool IsDisposed { get { return _disposed; } }
+        public int RegistrationCount { get { return _disposables.Count; } }
 
         public T Add<T>(T disposable) where T : IDisposable
         {
@@ -31,14 +40,16 @@ namespace GameUI.Runtime
         {
             if (_disposed) return;
             _disposed = true;
-            _lifetime.Cancel();
+            if (_lifetime != null)
+                try { _lifetime.Cancel(); } catch (Exception error) { UnityEngine.Debug.LogException(error); }
             for (var i = _disposables.Count - 1; i >= 0; i--)
             {
                 try { _disposables[i](); }
                 catch (Exception error) { UnityEngine.Debug.LogException(error); }
             }
             _disposables.Clear();
-            _lifetime.Dispose();
+            _lifetime?.Dispose();
+            _lifetime = null;
         }
     }
 

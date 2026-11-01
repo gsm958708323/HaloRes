@@ -12,18 +12,10 @@ namespace GameUI.Components
         { return ScriptPlayable<CanvasGroupAlphaMixer>.Create(graph, inputCount); }
     }
 
-    [System.Serializable]
-    public sealed class CanvasGroupAlphaClip : PlayableAsset, ITimelineClipAsset
-    {
-        public CanvasGroupAlphaBehaviour template = new CanvasGroupAlphaBehaviour();
-        public ClipCaps clipCaps { get { return ClipCaps.Blending; } }
-        public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
-        { return ScriptPlayable<CanvasGroupAlphaBehaviour>.Create(graph, template); }
-    }
-
     public sealed class CanvasGroupAlphaBehaviour : PlayableBehaviour
     {
-        [Range(0f, 1f)] public float alpha = 1f;
+        [Range(0f, 1f)] public float startAlpha = 1f;
+        [Range(0f, 1f)] public float endAlpha = 1f;
     }
 
     public sealed class CanvasGroupAlphaMixer : PlayableBehaviour
@@ -38,7 +30,10 @@ namespace GameUI.Components
             {
                 var input = (ScriptPlayable<CanvasGroupAlphaBehaviour>)playable.GetInput(i);
                 var inputWeight = playable.GetInputWeight(i);
-                value += input.GetBehaviour().alpha * inputWeight;
+                var duration = input.GetDuration();
+                var progress = duration > 0 ? Mathf.Clamp01((float)(input.GetTime() / duration)) : 1f;
+                var behaviour = input.GetBehaviour();
+                value += Mathf.Lerp(behaviour.startAlpha, behaviour.endAlpha, progress) * inputWeight;
                 weight += inputWeight;
             }
             if (weight > 0f) group.alpha = value / weight;

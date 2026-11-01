@@ -4,7 +4,7 @@ namespace GameUI.Runtime
 {
     internal interface IUIItemHost
     {
-        void OnItemEvent(int index, int code);
+        void OnItemEvent(int index, int code, int bindingVersion);
     }
 
     public abstract class UIItem<TData> : UIElement
@@ -14,10 +14,20 @@ namespace GameUI.Runtime
         private TData _data;
         private UIScope _bindScope;
         private bool _bound;
+        private int _bindingVersion;
 
         public int Index { get { return _index; } }
+        public int BindingVersion { get { return _bindingVersion; } }
         protected TData Data { get { return _data; } }
-        protected UIScope BindScope { get { return _bindScope; } }
+        protected UIScope BindScope
+        {
+            get
+            {
+                if (!_bound) throw new InvalidOperationException("The item has no active binding.");
+                if (_bindScope == null) _bindScope = new UIScope();
+                return _bindScope;
+            }
+        }
 
         internal void BindHost(IUIItemHost host) { _host = host; }
 
@@ -26,7 +36,8 @@ namespace GameUI.Runtime
             if (_bound) Unbind();
             _index = index;
             _data = data;
-            _bindScope = new UIScope();
+            _bindingVersion++;
+            _bindScope = null;
             _bound = true;
             OnBind(data);
         }
@@ -34,10 +45,11 @@ namespace GameUI.Runtime
         internal void Unbind()
         {
             if (!_bound) return;
+            _bindingVersion++;
             try { OnUnbind(); }
             finally
             {
-                _bindScope.Dispose();
+                _bindScope?.Dispose();
                 _bindScope = null;
                 _data = default(TData);
                 _index = -1;
@@ -47,7 +59,18 @@ namespace GameUI.Runtime
 
         protected void NotifyHost(int code = 0)
         {
-            if (_bound && _host != null && _index >= 0) _host.OnItemEvent(_index, code);
+            if (_bound && _host != null && _index >= 0) _host.OnItemEvent(_index, code, _bindingVersion);
+        }
+
+        protected void NotifyHost(int code, int expectedBindingVersion)
+        {
+            if (expectedBindingVersion == _bindingVersion) NotifyHost(code);
+        }
+
+        internal override void DestroyElement()
+        {
+            try { Unbind(); }
+            finally { base.DestroyElement(); }
         }
 
         protected abstract void OnBind(TData data);

@@ -1,7 +1,7 @@
 {
   "name": "GameUI.EditModeTests",
   "rootNamespace": "GameUI.Tests",
-  "references": ["GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "UniTask"],
+  "references": ["GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "GameUI.Editor", "GameFramework.Asset", "UniTask", "Unity.ugui", "Unity.Timeline", "Unity.RenderPipelines.Universal.Runtime"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

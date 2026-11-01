@@ -1,6 +1,6 @@
 namespace GameUI.Runtime
 {
-    public interface IUINodeChild
+    internal interface IUINodeChild
     {
         void HostOpen();
         void HostVisibilityChanged(bool visible);

@@ -1,7 +1,7 @@
 {
   "name": "GameUI.Editor",
   "rootNamespace": "GameUI.Editor",
-  "references": ["GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "GameUI.Demo", "Unity.ugui", "Unity.TextMeshPro", "Unity.Timeline"],
+  "references": ["GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "GameUI.Demo", "GameFramework.Asset", "GameFramework.Asset.Editor", "Unity.ugui", "Unity.TextMeshPro", "Unity.Timeline", "Unity.InputSystem"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

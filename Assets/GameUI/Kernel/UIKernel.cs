@@ -9,7 +9,10 @@ namespace GameUI.Kernel
         private readonly UIEntryTable _table = new UIEntryTable();
         private readonly UIFrame _frame = new UIFrame();
         private readonly IUILogSink _log;
+        private readonly IUIClock _clock;
+        private readonly List<IUIViewInstance> _visibleInstances = new List<IUIViewInstance>();
         private bool _disposed;
+        private bool _disposing;
         private UIReconciler _reconciler;
 
         public UIKernel(IUIViewRegistry registry, IUIViewSource source, IUIPresentationSink sink, IUIClock clock, IUILogSink log = null)
@@ -18,6 +21,7 @@ namespace GameUI.Kernel
             if (source == null) throw new ArgumentNullException(nameof(source));
             if (sink == null) throw new ArgumentNullException(nameof(sink));
             if (clock == null) throw new ArgumentNullException(nameof(clock));
+            _clock = clock;
             _log = log ?? NullLogSink.Instance;
             Input = new UIInputGate();
             History = new UIHistory();
@@ -34,19 +38,14 @@ namespace GameUI.Kernel
         public UIPresentation Presentation { get { return _reconciler.Frame.Presentation; } }
         public IReadOnlyList<IUIViewInstance> VisibleInDrawOrder
         {
-            get
-            {
-                var list = new List<IUIViewInstance>();
-                var entries = _reconciler.Frame.VisibleInDrawOrder;
-                for (var i = 0; i < entries.Count; i++) if (entries[i].Act.Instance != null) list.Add(entries[i].Act.Instance);
-                return list;
-            }
+            get { return _visibleInstances; }
         }
 
         internal IReadOnlyList<UIEntry> VisibleEntries { get { return _reconciler.Frame.VisibleInDrawOrder; } }
 
         public event Action<UIChange> Changed;
         public event Action BackAtRoot;
+        public event Action Disposed;
 
         public void Tick()
         {
@@ -54,8 +53,12 @@ namespace GameUI.Kernel
             _reconciler.Tick();
         }
 
-        internal void Request() { EnsureAlive(); _reconciler.Request(); }
-        internal void EnsureAlive() { if (_disposed) throw new ObjectDisposedException(nameof(UIKernel)); }
+        internal void Request()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(UIKernel));
+            _reconciler.Request();
+        }
+        internal void EnsureAlive() { if (_disposed || _disposing) throw new ObjectDisposedException(nameof(UIKernel)); }
         internal void Log(UILogLevel level, string message) { _log.Log(level, message); }
         internal void RaiseBackAtRoot() { BackAtRoot?.Invoke(); }
         internal void CompleteRejected(UIEntry entry, string message)
@@ -70,9 +73,11 @@ namespace GameUI.Kernel
 
         internal void Record(UIEntry entry, UIPhase from, UIPhase to, string source)
         {
-            var change = new UIChange(History.Count + 1, 0, entry.Id, entry.Info.Id, entry.Info.Mode, from, to, entry.Want.Intent, entry.Act.Reason, source);
+            var change = new UIChange(_clock.Frame, _clock.Now, entry.Id, entry.Info.Id, entry.Info.Mode, from, to, entry.Want.Intent, entry.Act.Reason, source);
             History.Write(change);
-            Changed?.Invoke(change);
+            if (Changed != null)
+                foreach (Action<UIChange> observer in Changed.GetInvocationList())
+                    try { observer(change); } catch (Exception error) { _log.Log(UILogLevel.Warning, "UI observer failed: " + error); }
         }
 
         internal void PublishFrame(UIFrame source)
@@ -82,9 +87,23 @@ namespace GameUI.Kernel
             foreach (var pair in source.BaseOrders) _frame.BaseOrders[pair.Key] = pair.Value;
             _frame.VisibleInDrawOrder.AddRange(source.VisibleInDrawOrder);
             _frame.Presentation = source.Presentation;
+            _visibleInstances.Clear();
+            for (var i = 0; i < _frame.VisibleInDrawOrder.Count; i++)
+            {
+                var instance = _frame.VisibleInDrawOrder[i].Act.Instance;
+                if (instance != null) _visibleInstances.Add(instance);
+            }
         }
 
-        internal void FailEntry(UIEntry entry, Exception error) { _log.Log(UILogLevel.Error, error.ToString()); }
+        internal void FailEntry(UIEntry entry, Exception error) { _reconciler.FailFromCallback(entry, error); Request(); }
+
+        public void ReportViewFailure(IUIViewInstance instance, Exception error)
+        {
+            if (_disposed || instance == null || error == null) return;
+            foreach (var entry in _table.ById.Values)
+                if (ReferenceEquals(entry.Act.Instance, instance))
+                { _reconciler.FailFromCallback(entry, error); Request(); return; }
+        }
 
         public string Dump()
         {
@@ -101,15 +120,27 @@ namespace GameUI.Kernel
             UITarget target;
             _reconciler.Frame.Targets.TryGetValue(entry.Id, out target);
             builder.Append('#').Append(entry.Id).Append(' ').Append(entry.Info.Id).Append(' ')
-                .Append(entry.Act.Phase).Append(" target=").Append(target).Append(" wanted=").Append(entry.Want.Wanted).AppendLine();
+                .Append(entry.Act.Phase).Append(" target=").Append(target).Append(" wanted=").Append(entry.Want.Wanted)
+                .Append(" reason=").Append(entry.Act.Reason).Append(" intent=").Append(entry.Want.Intent)
+                .Append(" order=").Append(_reconciler.Frame.BaseOrders.TryGetValue(entry.Id, out var order) ? order : 0).AppendLine();
         }
 
         public void Dispose()
         {
+            if (_disposed || _disposing) return;
+            _disposing = true;
+            try { _reconciler.Shutdown(); }
+            catch { CompleteDisposal(); throw; }
+        }
+
+        internal void CompleteDisposal()
+        {
             if (_disposed) return;
             _disposed = true;
-            for (var i = _table.Stack.Count - 1; i >= 0; i--) _table.Stack[i].Want.Wanted = false;
-            for (var i = _table.Overlays.Count - 1; i >= 0; i--) _table.Overlays[i].Want.Wanted = false;
+            _disposing = false;
+            if (Disposed != null)
+                foreach (Action observer in Disposed.GetInvocationList())
+                    try { observer(); } catch (Exception error) { _log.Log(UILogLevel.Warning, "UI disposal observer failed: " + error); }
         }
 
         private sealed class NullLogSink : IUILogSink
