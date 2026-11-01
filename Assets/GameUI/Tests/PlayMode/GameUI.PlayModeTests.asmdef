@@ -1,7 +1,0 @@
-{
-  "name": "GameUI.PlayModeTests",
-  "rootNamespace": "GameUI.Tests.PlayMode",
-  "references": ["GameUI.Demo", "GameUI.Kernel", "GameUI.Runtime", "GameUI.Components", "GameFramework.Asset", "UniTask", "Unity.ugui", "Unity.RenderPipelines.Universal.Runtime"],
-  "optionalUnityReferences": ["TestAssemblies"],
-  "autoReferenced": false
-}
