@@ -1,0 +1,7 @@
+{
+  "name": "GameFramework.UI.EditModeTests",
+  "references": ["GameFramework.UI", "GameFramework.Asset", "GameFramework.UI.Samples"],
+  "includePlatforms": ["Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "autoReferenced": false
+}

@@ -28,9 +28,9 @@ flowchart LR
 4. 打开 `Assets/Scenes/AssetLifecycleLab.unity` 并进入 Play Mode。在启动组件的 Inspector 中选择 Editor 或 Bundle 模式；独立运行程序始终使用 Bundle 模式。
 5. 使用 `Game Framework > Assets > Debugger` 查看资源地址、拥有者和资源包状态。
 
-`StreamingAssets/GameFrameworkAsset` 与 `StreamingAssets/GameUIAsset` 是可重建的随包内容，
-已加入 Git 忽略列表；首次运行 Bundle 模式或相关测试前，需要执行对应的 Stage 菜单。
-源码、生成的 C# 绑定/Registry、演示 Prefab、Timeline 和构建配置仍随项目提交。
+`StreamingAssets/GameFrameworkAsset` 是可重建的随包内容，已加入 Git 忽略列表；
+首次运行 Bundle 模式或相关测试前，需要执行 `Stage Demo For Player` 菜单。
+源码、演示资源和构建配置仍随项目提交。
 
 主城面板和战斗面板共享 `ui_common`；战斗场景与 HUD 共享 `hero_001`。
 返回主城时，系统释放战斗作用域，保留主城仍在使用的材质。
@@ -90,47 +90,33 @@ Windows 编辑器测试不能证明 Android/iOS 真机行为。应为每个目�
 架构与关键生命周期决策记录在 `Docs/adr/0001-asset-lifetime-and-content-activation.md`。
 需求覆盖、实测结果和待完成的真机检查记录在 `Docs/verification/2026-10-31-asset-framework.md`。
 
-## GameUI 框架
+## UI 框架
 
-`Assets/GameUI` 提供基于现有资源框架的 UGUI UI 系统，包括导航收敛、替换失败回退、
-模态遮罩、分层输入、Timeline、节点 Scope、列表、模型展示、世界 HUD 和拖拽。
-UI Prefab 通过 `AssetSystemUIAssetService -> AssetScope -> AssetSystem` 按地址加载；
-Editor 使用编辑器 Provider，Player 使用真实 AssetBundle Provider。
+HaloFrame UI 迁移至 `Assets/GameFramework/Runtime/UI`，示例位于
+`Assets/GameFramework/Samples/UI/UI.unity`。直接使用本项目 AssetSystem 与 AssetScope，
+保留 `OnAwake / OnStart / OnEnable / OnDisable / OnDestroy` 生命周期。
 
-应用先初始化并驱动资源系统，再注入 UI：
+每次打开创建独立导航记录，同类型根界面共用一份实例：A-B-C-B 返回顺序仍为 C-B-A。
 
 ```csharp
-UIBoot.Install(new UIBootConfig
-{
-    System = system,
-    Registry = GameUI_DemoRegistry.Create(), // 替换为业务程序集生成的 Registry
-    WorldCamera = Camera.main,
-    // Root 可选；留空时查找或自动创建。
-});
-await UIBoot.PreloadKeepAlive();
-UI.Open<DemoHomeView>();
-// 应用关闭时先结束 UI，再等待外部资源系统完成关闭。
-UIBoot.Shutdown();
-await system.ShutdownAsync();
+var ui = new UIManager(system, configuration, parent, worldCamera);
+var first = ui.Open<BagView>(new object[] { args }, cancellationToken);
+var view = await first.Opened;
+var second = ui.Open<BagView>(); // 同一实例，新的访问记录
+await ui.CloseAsync(second);    // 只移除这次访问
+await ui.PopAsync(LayerType.NormalLayer);
+ui.Dispose();
+await system.ShutdownAsync();   // 资源系统始终由应用拥有并驱动 Tick
 ```
 
-资源系统由应用拥有，UI 不创建或关闭它。缓存实例持有 Prefab 资源，淘汰时等待
-原生实例销毁再释放；低内存时可回收非驻留缓存。业务消息使用 SessionScope 或 BindScope，
-控件监听使用 InstanceScope；OnOpen 必须重置会话状态，不能依赖缓存复用时再次 OnCreate。
+UIConfigSO 直接配置 AssetManifest 地址；子视图配置使用动态资源或明确静态 NodePath。
+参数通过 `Arguments` 随当前访问切换，访问状态可通过 CaptureNavigationState 与
+RestoreNavigationState 保存和恢复。父子界面与模板 Item 的资源所有权见 ADR 0004。
 
-打开 `Assets/GameUI/Demo/GameUIDemo.unity` 后进入 Play Mode。演示包含首页、弹窗、Overlay、
-System Overlay、带 bool 结果的确认框、1000 项虚拟列表及模型舞台。
+打开示例后进入 Play Mode；Q/W/E/R/A/S 和屏幕按钮可测试全屏、弹窗、独立子界面与跨层显示。
+点击首页四个 Child 按钮切换子界面。重复打开同类型会增加返回记录，不重复实例化。
+`Game Framework > UI > Stage Sample Bundles` 准备 Bundle 模式及真实 Bundle 集成测试；
+`Build Windows Sample Player` 构建独立示例。Player 支持 `--ui-smoke-result <absolute-json-path>`。
 
-- `GameUI > Create Complete Demo`：重建演示 Prefab、Timeline、绑定、构建配置和场景。
-- `Assets > GameUI > Create UI From Prefab`：从选中的 Prefab 生成业务模板、Args、绑定和默认过渡。
-- `GameUI > Generate UIView Registry` / `Generate Binding Code`：生成代码；编译后自动更新 Registry。
-- `GameUI > Lint Selected Prefab` / `Window > GameUI > Debugger`：资源检查和运行时状态、Scope、输入锁、历史快照。
-- `GameUI > Stage Demo Bundles`：构建 UI 资源并放入 `StreamingAssets/GameUIAsset/<platform>`。
-- `GameUI > Build Windows Demo Player`：输出 `Build/UIPlayer/GameUIDemo.exe`。
-
-测试前先准备 UI Bundle，然后运行 `GameUI.EditModeTests` 与 `GameUI.PlayModeTests`。
-独立 Player 传入 `--ui-smoke-result <absolute-json-path>` 会自动验证 Bundle 加载、弹窗遮罩、
-System 交互、类型化结果、虚拟列表、模型目标及关闭后资源归零，并输出 JSON 后退出。
-结果和验证边界记录在 `Docs/verification/2026-11-01-ui-framework.md`。
-架构决策见 `Docs/adr/0002-ui-reconciliation-and-resource-ownership.md` 和
-`Docs/adr/0003-ui-runtime-integration.md`。
+运行 `GameFramework.UI.EditModeTests` 与 `GameFramework.UI.PlayModeTests`，并回归资源框架测试。
+架构契约见 `Docs/adr/0004-halo-frame-ui-migration.md`。

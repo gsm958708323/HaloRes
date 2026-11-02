@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "bundles": [
+    {
+      "name": "ui_samples",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 0,
+      "dependencies": []
+    }
+  ],
+  "assets": [
+    {
+      "address": "UI/Config",
+      "assetPath": "Assets/GameFramework/Samples/UI/Config/UIConfig.asset",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/FullView1",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/FullView1.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/FullView2",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/FullView2.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/FullView2_Top",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/FullView2_Top.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/TipsView1",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/TipsView1.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/TipsView2",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/TipsView2.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/ChildView1",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/ChildView1.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/ChildView2",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/ChildView2.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/ChildView3",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/ChildView3.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/ChildView4",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/ChildView4.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    },
+    {
+      "address": "UI/ButtonItem",
+      "assetPath": "Assets/GameFramework/Samples/UI/Prefabs/ButtonItem.prefab",
+      "bundleIndex": 0,
+      "kind": 0
+    }
+  ]
+}

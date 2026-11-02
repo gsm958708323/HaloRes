@@ -1,0 +1,6 @@
+{
+  "name": "GameFramework.UI.Samples",
+  "rootNamespace": "GameFramework.UI.Samples",
+  "references": ["GameFramework.UI", "GameFramework.Asset", "UniTask", "Unity.ugui", "Unity.InputSystem"],
+  "autoReferenced": false
+}

@@ -16,18 +16,13 @@
 # Local screenshots captured during Unity verification.
 /Assets/Screenshots/
 /Assets/Screenshots.meta
-# Historical UI demo captures are local verification output.
-/Assets/GameUI/Demo/Captures/
-/Assets/GameUI/Demo/Captures.meta
-
 # Reproducible demo bundle staging (including generated Unity metadata).
-# Recreate with Game Framework/Assets/Stage Demo For Player or GameUI/Stage Demo Bundles.
+# Recreate with Game Framework/Assets/Stage Demo For Player.
 /Assets/StreamingAssets/GameFrameworkAsset/
 /Assets/StreamingAssets/GameFrameworkAsset.meta
-/Assets/StreamingAssets/GameUIAsset/
-/Assets/StreamingAssets/GameUIAsset.meta
+/Assets/StreamingAssets/GameFrameworkUI/
+/Assets/StreamingAssets/GameFrameworkUI.meta
 /Assets/StreamingAssets.meta
-# Generated C# bindings, registries, Prefabs, and Timelines remain versioned.
 *.log
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.

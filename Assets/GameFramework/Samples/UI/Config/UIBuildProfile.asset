@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e6d42df031443a4eb87c161c688339c, type: 3}
+  m_Name: UIBuildProfile
+  m_EditorClassIdentifier: 
+  version: 1
+  entries:
+  - address: UI/Config
+    bundle: ui_samples
+    asset: {fileID: 11400000, guid: 093ad7b46f82590f88cd983b1a804371, type: 2}
+  - address: UI/FullView1
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: bac6e7e245dec5e47a0adb56610878fa, type: 3}
+  - address: UI/FullView2
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: 3964de6fa419dd743aea429a08a65547, type: 3}
+  - address: UI/FullView2_Top
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: 1a56c19eded29304bb67e8d251178c22, type: 3}
+  - address: UI/TipsView1
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: 557d2f7c8812ea84cb0efc2383872029, type: 3}
+  - address: UI/TipsView2
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: d9fd254ab3edd9049bf1584f93a792b2, type: 3}
+  - address: UI/ChildView1
+    bundle: ui_samples
+    asset: {fileID: 1554610324199908758, guid: 22522c37b92288f4bbda185b41e4ba28, type: 3}
+  - address: UI/ChildView2
+    bundle: ui_samples
+    asset: {fileID: 1554610324199908758, guid: 3792822907aeb5a4aa350f7908f290fb, type: 3}
+  - address: UI/ChildView3
+    bundle: ui_samples
+    asset: {fileID: 1554610324199908758, guid: 1a146f4c152365548b062d6af2a6daf3, type: 3}
+  - address: UI/ChildView4
+    bundle: ui_samples
+    asset: {fileID: 1554610324199908758, guid: 7e6b26f4cd4d23c47bc7a86f68510e06, type: 3}
+  - address: UI/ButtonItem
+    bundle: ui_samples
+    asset: {fileID: 5610574459712128117, guid: a3a078545ce626147b21d24b2895783f, type: 3}

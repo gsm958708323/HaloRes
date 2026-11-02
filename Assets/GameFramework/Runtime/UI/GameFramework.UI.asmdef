@@ -1,0 +1,6 @@
+{
+  "name": "GameFramework.UI",
+  "rootNamespace": "GameFramework.UI",
+  "references": ["GameFramework.Asset", "UniTask", "Unity.ugui", "Unity.InputSystem"],
+  "autoReferenced": true
+}

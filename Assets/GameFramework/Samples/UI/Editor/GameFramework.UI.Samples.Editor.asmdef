@@ -1,0 +1,7 @@
+{
+  "name": "GameFramework.UI.Samples.Editor",
+  "rootNamespace": "GameFramework.UI.Samples.Editor",
+  "references": ["GameFramework.UI", "GameFramework.UI.Samples", "GameFramework.Asset", "GameFramework.Asset.Editor", "UniTask", "Unity.ugui"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}
