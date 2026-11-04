@@ -17,8 +17,10 @@ namespace GameFramework.UI.Tests
             Probe.CaptureAction = _ => throw new InvalidOperationException("Injected snapshot failure");
             await UI.CloseAsync(a); Assert.That(UI.InstanceCount, Is.Zero);
             var b = UI.Open<B>(); await b.Opened;
+            LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("Injected snapshot failure"));
             var c = UI.Open<C>(); var cv = await c.Opened;
-            Assert.That(b.IsClosed, Is.True); Assert.That(cv.IsVisible, Is.True);
+            Assert.That(b.IsClosed, Is.False, "A hidden fullscreen visit remains in the back stack.");
+            Assert.That(cv.IsVisible, Is.True);
             Probe.CaptureAction = null;
         });
 

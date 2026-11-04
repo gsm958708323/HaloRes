@@ -81,9 +81,11 @@ namespace GameFramework.UI
         }
         internal void SelectNavigation(UIHandle handle, object[] arguments, object savedState, bool hasSavedState)
         {
+            // 同一次访问可能因其它导航命令重复刷新；只有访问 ID 变化时才恢复快照，避免覆盖尚未离场的实时状态。
+            var changed = ActiveNavigation?.Id != handle?.Id;
             ActiveNavigation = handle;
             _arguments = Array.AsReadOnly(arguments ?? Array.Empty<object>());
-            RestoreNavigationState(hasSavedState ? savedState : null);
+            if (changed) RestoreNavigationState(hasSavedState ? savedState : null);
         }
         internal object CaptureState() => CaptureNavigationState();
         protected virtual object CaptureNavigationState() => null;

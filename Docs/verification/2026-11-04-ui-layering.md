@@ -7,7 +7,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `dotnet build HaloRes2.sln --no-restore --nologo` | 成功，0 警告、0 错误 |
-| `git diff --check` | 通过；仅报告既有文件换行符将转换为 CRLF |
+| `git diff --check` | 通过；仅提示改动文件的 LF/CRLF 转换 |
 | 迁移脚本 GUID | 16 个原脚本 `.meta` 与新位置一致 |
 | Assets GUID 唯一性 | 检查 174 个 `.meta`，0 个重复 GUID |
 | UI 源码文件长度 | 29 个 C# 文件均不超过 500 行 |
@@ -15,19 +15,20 @@
 复杂导航、加载、生命周期、子视图切换、静态节点借用和配置图校验处补充了中文注释。
 目录职责决策见 `Docs/adr/0005-ui-runtime-layering.md`。
 
-## Unity Test Runner 状态
+## Unity Test Runner
 
-本轮通过 Unity MCP 读取到 Editor 正在运行 PlayMode，活动作业为
-`d8fb3477d85a4bb78f51c6aa36b72923`，当前测试是
-`GameFramework.UI.Tests.UINavigationTests.ABCBUsesOneBAndPreservesEveryReturn`。
-该作业管理记录已被标记为手动清理，但 `mcpforunity://editor/state` 仍报告
-`tests.is_running=true`，因此新 EditMode 测试请求返回 `tests_running`，没有启动新的测试。
+Unity 6000.0.32f1 已通过 Unity MCP 导入并编译最新脚本。最终 Console 查询为 0 条 Error、1 条
+MCP 传输 Warning：`[WebSocket] Unexpected receive error: WebSocket is not initialised`。刷新后的
+Editor 快照显示 Play Mode、测试、编译和 AssetDatabase 更新均空闲；`ready_for_tools` 因状态缓存过期仍为 false。
 
-旧作业记录为 38/61，包含 8 个超时和 1 个 TearDown `NullReferenceException`。这些结果来自
-`UIHandle.Opened` 完成通知修复前的代码，且 Runner 尚未导入本轮文件；不能作为本轮代码的测试结论。
-Editor 同时报告 `assets.external_changes_dirty=true`。`dotnet build` 编译成功不等于 Unity
-已导入并编译这些最新文件。
+| 检查 | 结果 | Unity MCP job |
+| --- | --- | --- |
+| UI 与 AssetSystem EditMode | 35/35 通过 | `56ee51a958704134bf6b995726e53c28` |
+| UI PlayMode（含真实 Bundle 集成） | 32/32 通过 | `de7f10ac4bb140c6a7fb22acd59a2283` |
+| AssetSystem PlayMode | 29/29 通过 | `ca508de2369f4deab2faf9aa52e1d6a2` |
+| 合计 | 96/96 通过，0 失败、0 跳过 | |
 
-要完成验收，需要先让当前 PlayMode Runner 结束或经授权停止，再等待 Unity 导入和编译最新文件，
-然后通过 Unity MCP 运行 UI EditMode、UI PlayMode 及 AssetSystem 回归。2026-11-02 验收文档中的
-94/94 是本次目录分层调整前的历史基线，不计入本轮结果。
+针对性回归确认：A-B-C-B 共用一个 B 实例并按访问顺序返回；重复访问的参数与页面状态分别恢复；
+状态捕获异常不阻断可见栈更新；生命周期回调内 Dispose 会完成排队句柄；失败视图移除后背景页恢复。
+
+2026-11-02 的 94/94 是分层重构前的历史基线；本轮 96/96 为最新结果。

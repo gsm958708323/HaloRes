@@ -40,4 +40,4 @@ Unity 表现和调度逻辑放在同一目录，阅读时需要在行为和实�
 ## 验证
 
 目录分层不改变 UI 生命周期命名、导航契约或 AssetSystem 资源加载入口。重构验证状态见
-`Docs/verification/2026-11-04-ui-layering.md`；2026-11-02 的 94 项测试记录属于分层调整前的基线。
+`Docs/verification/2026-11-04-ui-layering.md`；本轮 Unity UI 与 AssetSystem 测试 96/96 通过。

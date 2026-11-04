@@ -81,6 +81,8 @@ namespace GameFramework.UI
                 record = _instances.Retain(definition.ViewType,
                     scope => CreateRootView(definition.ViewType, definition.LayerType, scope));
                 var entry = _navigation.Add(handle.Id, definition, args);
+                // 复用已就绪实例时没有新的加载回调，必须在入栈时推进新访问，否则它会永久停在 Loading。
+                if (record.Ready) _navigation.MarkReady(definition.ViewType);
                 _handles.Add(entry.Id, handle);
                 handle.State = record.Error != null ? UINavigationState.Failed
                     : record.Ready ? UINavigationState.Ready : UINavigationState.Loading;
@@ -282,10 +284,21 @@ namespace GameFramework.UI
                 var isVisible = visible.Contains(record.ViewType);
                 if (record.View.IsVisible && (!isVisible || record.ActiveEntryId != GetActiveEntry(snapshot, record.ViewType)))
                 {
-                    // 先保存正在离开的访问状态，再切换参数和恢复目标访问的数据。
-                    if (record.ActiveEntryId != 0) _navigation.SaveState(record.ActiveEntryId, record.View.CaptureState());
-                    record.View.Disable();
+                    // 保存或隐藏回调失败都不能中断其它界面的显隐刷新。
+                    if (record.ActiveEntryId != 0)
+                    {
+                        var entryId = record.ActiveEntryId;
+                        UIView.Cleanup(() => _navigation.SaveState(entryId, record.View.CaptureState()));
+                    }
+                    UIView.Cleanup(record.View.Disable);
                 }
+            }
+
+            // 离场状态已写回导航记录，重新取快照后再恢复目标访问，避免用旧快照覆盖保存结果。
+            snapshot = _navigation.CreateSnapshot();
+            foreach (var record in new List<UIViewRecord>(_instances.Records))
+            {
+                if (record.References <= 0) continue;
                 if (snapshot.TryGet(record.ViewType, out var state))
                 {
                     record.ActiveEntryId = state.ActiveEntryId;
@@ -301,13 +314,22 @@ namespace GameFramework.UI
             }
 
             var order = 0;
+            var retryVisibleStack = false;
             foreach (var target in snapshot.VisibleViews)
             {
                 var record = _instances.Find(target.ViewType);
                 if (record == null || record.References <= 0) continue;
                 try { record.View.SetCanvasOrder(ref order); record.View.Enable(); }
-                catch (Exception error) { FailView(record, error); }
+                catch (Exception error)
+                {
+                    FailView(record, error);
+                    retryVisibleStack = true;
+                    break;
+                }
             }
+
+            // 失败视图已从导航栈移除，重算一次以恢复它后面的背景页面。
+            if (retryVisibleStack && !IsDisposed) Refresh();
         }
 
         private long GetActiveEntry(UINavigationSnapshot snapshot, Type type)
@@ -428,10 +450,15 @@ namespace GameFramework.UI
             _root.Dispose();
             _disposed = true;
             _disposeRequested = false;
+            // Dispose 可能由生命周期回调触发；先终止尚未执行的命令并收集其完成通知，再统一派发。
+            while (_commands.Count > 0)
+            {
+                try { _commands.Dequeue()(); }
+                catch (Exception error) { Debug.LogException(error); }
+            }
             var notifications = _notifications.ToArray();
             _notifications.Clear();
             foreach (var notification in notifications) notification();
-            while (_commands.Count > 0) _commands.Dequeue()();
         }
     }
 }
