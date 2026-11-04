@@ -100,8 +100,8 @@ namespace GameFramework.UI.Samples
                 if (GUILayout.Button("Back Normal")) Observe(UI.PopAsync(LayerType.NormalLayer));
                 if (GUILayout.Button("Back Top")) Observe(UI.PopAsync(LayerType.TopLayer));
                 GUILayout.EndHorizontal();
-                GUILayout.Label("Normal: " + UI.GetLayer(LayerType.NormalLayer).Count
-                    + "    Top: " + UI.GetLayer(LayerType.TopLayer).Count);
+                GUILayout.Label("Normal: " + UI.GetLayerCount(LayerType.NormalLayer)
+                    + "    Top: " + UI.GetLayerCount(LayerType.TopLayer));
             }
             GUILayout.EndArea();
         }

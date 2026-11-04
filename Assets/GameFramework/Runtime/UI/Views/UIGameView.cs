@@ -19,10 +19,10 @@ namespace GameFramework.UI
             => (T)await Children.Open(typeof(T), false, args, ct);
         public async Task<T> OpenOneChildUIAsync<T>(object[] args = null, CancellationToken ct = default) where T : UISubView
             => (T)await Children.Open(typeof(T), true, args, ct);
-        public void OpenChild<T>(params object[] args) where T : UISubView => UIManager.Observe(OpenChildAsync<T>(args));
-        public void OpenOneChildUI<T>(params object[] args) where T : UISubView => UIManager.Observe(OpenOneChildUIAsync<T>(args));
+        public void OpenChild<T>(params object[] args) where T : UISubView => UIRuntime.Observe(OpenChildAsync<T>(args));
+        public void OpenOneChildUI<T>(params object[] args) where T : UISubView => UIRuntime.Observe(OpenOneChildUIAsync<T>(args));
         public void CloseChild<T>() where T : UISubView => CloseChild(typeof(T));
-        public void CloseChild(Type type) => UIManager.Observe(CloseChildAsync(type));
+        public void CloseChild(Type type) => UIRuntime.Observe(CloseChildAsync(type));
         public Task CloseChildAsync(Type type) { CheckAlive(); return Children.Hide(type, false); }
         public Task RemoveChildAsync<T>() where T : UISubView { CheckAlive(); return Children.Hide(typeof(T), true); }
 
@@ -41,7 +41,7 @@ namespace GameFramework.UI
                 item.Awake();
                 item.Start(args);
                 if (IsVisible) item.Enable();
-                Manager.Enqueue(() => { });
+                Runtime.Enqueue(() => { });
                 return item;
             }
             catch { _items.Remove(item); item.Release(); throw; }
@@ -61,7 +61,7 @@ namespace GameFramework.UI
                 item.Awake();
                 item.Start(args);
                 if (IsVisible) item.Enable();
-                Manager.Enqueue(() => { });
+                Runtime.Enqueue(() => { });
                 return item;
             }
             catch { _items.Remove(item); item.Release(); throw; }
@@ -69,7 +69,7 @@ namespace GameFramework.UI
         private T NewItem<T>() where T : UIItem, new()
         {
             var item = new T { Parent = this };
-            item.Bind(Manager, null, UILayer, Assets.CreateChild(typeof(T).Name));
+                item.Bind(Manager, Runtime, null, LayerType, Assets.CreateChild(typeof(T).Name));
             _items.Add(item);
             return item;
         }
@@ -102,6 +102,7 @@ namespace GameFramework.UI
         {
             get
             {
+                // 数量与分配使用同一视图树：只计入当前选中的子视图及其 Item。
                 var count = base.SortingCount;
                 foreach (var item in _items) count += item.SortingCount;
                 foreach (var child in Children.Selected) count += child.SortingCount;
@@ -114,7 +115,7 @@ namespace GameFramework.UI
             foreach (var item in _items) item.SetCanvasOrder(ref order);
             foreach (var child in Children.Selected) child.SetCanvasOrder(ref order);
         }
-        private void CheckAlive() { Manager.AssertAlive(); Lifetime.ThrowIfCancellationRequested(); }
+        private void CheckAlive() { Runtime.AssertAlive(); Lifetime.ThrowIfCancellationRequested(); }
         protected override void ReleaseOwnedViews()
         {
             _children?.Dispose();

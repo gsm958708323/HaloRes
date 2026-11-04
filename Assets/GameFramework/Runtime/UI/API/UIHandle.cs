@@ -5,13 +5,13 @@ namespace GameFramework.UI
 {
     public enum UINavigationState { Loading, Ready, Open, Closed, Failed }
 
-    /// <summary>One navigation visit. Several visits can share the same view instance.</summary>
+    /// <summary>一次打开访问的公开句柄；重复访问可共享同一视图实例。</summary>
     public class UIHandle
     {
         private readonly TaskCompletionSource<UIGameView> _opened = new TaskCompletionSource<UIGameView>(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _closed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal UIManager Owner;
-        internal UIHandle(UIManager owner, long id, Type type) { Owner = owner; Id = id; ViewType = type; }
+        internal UIRuntime Owner;
+        internal UIHandle(UIRuntime owner, long id, Type type) { Owner = owner; Id = id; ViewType = type; }
         public long Id { get; }
         public Type ViewType { get; }
         public UINavigationState State { get; internal set; }
@@ -32,7 +32,7 @@ namespace GameFramework.UI
 
     public sealed class UIHandle<T> : UIHandle where T : UIGameView
     {
-        internal UIHandle(UIManager owner, long id) : base(owner, id, typeof(T)) { Opened = Cast(base.Opened); }
+        internal UIHandle(UIRuntime owner, long id) : base(owner, id, typeof(T)) { Opened = Cast(base.Opened); }
         public new Task<T> Opened { get; }
         private static async Task<T> Cast(Task<UIGameView> task) => (T)await task;
     }

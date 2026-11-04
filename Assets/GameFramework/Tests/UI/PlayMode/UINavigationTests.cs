@@ -18,7 +18,7 @@ namespace GameFramework.UI.Tests
             var b1 = UI.Open<B>(); var b = await b1.Opened;
             var c = UI.Open<C>(); await c.Opened;
             var b2 = UI.Open<B>(); Assert.That(await b2.Opened, Is.SameAs(b));
-            Assert.That(UI.GetLayer(LayerType.NormalLayer).History.Select(h => h.Id), Is.EqualTo(new[] { a.Id, b1.Id, c.Id, b2.Id }));
+            Assert.That(UI.GetHistory(LayerType.NormalLayer).Select(h => h.Id), Is.EqualTo(new[] { a.Id, b1.Id, c.Id, b2.Id }));
             Assert.That(UI.InstanceCount, Is.EqualTo(3));
             Assert.That(Provider.Loads["B"], Is.EqualTo(1));
             Assert.That(b.AwakeCount, Is.EqualTo(1)); Assert.That(b.StartCount, Is.EqualTo(1));
@@ -161,7 +161,7 @@ namespace GameFramework.UI.Tests
         {
             StartUI();
             for (var i = 0; i < 24; i++) await UI.OpenAsync<B>();
-            Assert.That(UI.GetLayer(LayerType.NormalLayer).Count, Is.EqualTo(24));
+            Assert.That(UI.GetLayerCount(LayerType.NormalLayer), Is.EqualTo(24));
             Assert.That(UI.InstanceCount, Is.EqualTo(1)); Assert.That(Provider.Loads["B"], Is.EqualTo(1));
             for (var i = 0; i < 24; i++) await UI.PopAsync(LayerType.NormalLayer);
             Assert.That(UI.InstanceCount, Is.Zero);

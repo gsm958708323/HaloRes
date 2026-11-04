@@ -19,24 +19,28 @@ namespace GameFramework.UI
         public Transform transform => gameObject == null ? null : gameObject.transform;
         public RectTransform rectTransform => transform as RectTransform;
         public UIManager Manager { get; private set; }
+        internal UIRuntime Runtime { get; private set; }
         public UIViewDefinition Configuration { get; private set; }
-        public UILayer UILayer { get; private set; }
+        public LayerType LayerType { get; private set; }
         public AssetScope Assets { get; private set; }
         public UIState UIState { get; private set; }
         public int SortingOrder { get; private set; }
         public bool IsVisible => UIState == UIState.Enable;
         public bool IsReleased => _releasing || UIState == UIState.Release;
         public CancellationToken Lifetime { get; private set; }
+        internal bool IsAwakened => _awakened;
+        internal bool IsStarted => _started;
         public CancellationToken VisibilityToken => _visibility?.Token ?? new CancellationToken(true);
         public IReadOnlyList<object> Arguments => _arguments;
         public UIHandle ActiveNavigation { get; private set; }
         internal virtual int SortingCount => _presentation?.SortingCount ?? 0;
 
-        internal void Bind(UIManager manager, UIViewDefinition definition, UILayer layer, AssetScope scope)
+        internal void Bind(UIManager manager, UIRuntime runtime, UIViewDefinition definition, LayerType layer, AssetScope scope)
         {
-            Manager = manager; Configuration = definition; UILayer = layer; Assets = scope;
+            Manager = manager; Runtime = runtime; Configuration = definition; LayerType = layer; Assets = scope;
             Lifetime = _lifetime.Token;
         }
+        // 并发访问共享同一个准备任务，避免重复实例化或重复加载同一视图。
         internal Task LoadAsync() => _loadTask ?? (_loadTask = LoadCore());
         private async Task LoadCore()
         {
@@ -46,7 +50,7 @@ namespace GameFramework.UI
             if (this is UISubView child && child.Parent != null && child.Binding.ResType == ResType.Static)
                 instance = child.Parent.transform.Find(child.Binding.NodePath)?.gameObject
                     ?? throw new InvalidOperationException("Static UI NodePath was not found: " + child.Binding.NodePath);
-            else instance = await Assets.InstantiateAsync(Configuration.PrefabAddress, UILayer.Canvas.transform, Lifetime);
+            else instance = await Assets.InstantiateAsync(Configuration.PrefabAddress, Runtime.GetCanvas(LayerType).transform, Lifetime);
             Lifetime.ThrowIfCancellationRequested();
             Attach(instance);
             if (this is UIGameView parent) await parent.PrepareChildren();
@@ -75,11 +79,11 @@ namespace GameFramework.UI
             UIState = UIState.Start;
             OnStart(args ?? Array.Empty<object>());
         }
-        internal void SelectNavigation(UINavigationEntry entry)
+        internal void SelectNavigation(UIHandle handle, object[] arguments, object savedState, bool hasSavedState)
         {
-            ActiveNavigation = entry.Handle;
-            _arguments = Array.AsReadOnly(entry.Arguments);
-            RestoreNavigationState(entry.HasSavedState ? entry.SavedState : null);
+            ActiveNavigation = handle;
+            _arguments = Array.AsReadOnly(arguments ?? Array.Empty<object>());
+            RestoreNavigationState(hasSavedState ? savedState : null);
         }
         internal object CaptureState() => CaptureNavigationState();
         protected virtual object CaptureNavigationState() => null;
@@ -118,6 +122,7 @@ namespace GameFramework.UI
         {
             if (IsReleased) return;
             _releasing = true;
+            // 先取消实例任务并隐藏，再释放子对象、触发生命周期清理并归还 AssetScope。
             Cleanup(_lifetime.Cancel);
             Cleanup(Disable);
             Cleanup(ReleaseOwnedViews);

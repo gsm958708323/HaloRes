@@ -17,6 +17,7 @@ namespace GameFramework.UI
             if (!(ReferenceResolution.x > 0) || !(ReferenceResolution.y > 0)
                 || float.IsInfinity(ReferenceResolution.x) || float.IsInfinity(ReferenceResolution.y))
                 throw new ArgumentException("UI reference resolution must be finite and positive.");
+            // AssetManifest 是资源地址的唯一事实来源；这里校验后复制配置，避免运行中依赖可变 SO。
             var addresses = new Dictionary<string, AssetKind>(StringComparer.Ordinal);
             foreach (var asset in manifest.Assets) addresses.Add(asset.Address, asset.Kind);
             var result = new Dictionary<Type, UIViewDefinition>();
@@ -62,6 +63,7 @@ namespace GameFramework.UI
             }
             var visiting = new HashSet<Type>();
             var visited = new HashSet<Type>();
+            // visiting 检出递归路径上的环；visited 避免重复遍历被多个父视图共享的子配置。
             foreach (var type in result.Keys) ValidateChildren(type, result, visiting, visited);
             return result;
         }

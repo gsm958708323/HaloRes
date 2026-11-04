@@ -119,4 +119,5 @@ RestoreNavigationState 保存和恢复。父子界面与模板 Item 的资源所
 `Build Windows Sample Player` 构建独立示例。Player 支持 `--ui-smoke-result <absolute-json-path>`。
 
 运行 `GameFramework.UI.EditModeTests` 与 `GameFramework.UI.PlayModeTests`，并回归资源框架测试。
-架构契约见 `Docs/adr/0004-halo-frame-ui-migration.md`。
+导航与资源所有权契约见 `Docs/adr/0004-halo-frame-ui-migration.md`；代码目录职责见
+`Docs/adr/0005-ui-runtime-layering.md`。

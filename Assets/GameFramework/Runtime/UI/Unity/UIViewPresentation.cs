@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace GameFramework.UI
 {
-    /// <summary>Owns rendering flags, not assets. Static child subtrees are excluded and managed by their own view.</summary>
+    /// <summary>只管理渲染开关，不拥有资源；静态子树由对应的子视图单独管理。</summary>
     internal sealed class UIViewPresentation
     {
         private readonly CanvasGroup _group;
@@ -23,6 +23,7 @@ namespace GameFramework.UI
             _group = instance.GetComponent<CanvasGroup>();
             if (_group == null) _group = instance.AddComponent<CanvasGroup>();
             var excluded = new List<Transform>();
+            // 静态子树有自己的表现控制器，父视图不能重复改写其中的 Canvas、射线和动画状态。
             if (children != null)
                 foreach (var child in children)
                     if (child.ResType == ResType.Static)
@@ -57,6 +58,7 @@ namespace GameFramework.UI
             if (visible == _visible) return;
             if (!visible)
             {
+                // 首次隐藏时记住业务原始开关，恢复时只还原原本启用的组件。
                 _alpha = _group.alpha;
                 _interactable = _group.interactable;
                 _blocks = _group.blocksRaycasts;
